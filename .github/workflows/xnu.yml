@@ -1,23 +1,5 @@
 name: xnu
 
-# Kernel CI for the grus port (Xiaomi Mi 9 SE / SDM710).
-#
-# Same pipeline as upstream ios-sweet: blacktop/darwin-xnu-build fetches the
-# xnu release that matches MACOS_VERSION (13.5 -> xnu-8796.141.3, the iOS 16
-# generation), applies xnu/patches/ in order and uploads the kernel Mach-O as
-# the xnu-kernel artifact.
-#
-# The GRUS port deliberately keeps MACHINE_CONFIG=SWEET: the SoC family is the
-# same (GICv3, 19.2 MHz timer, UFSHCI at 0x1d84000, bootloader framebuffer at
-# 0x9c000000, ARMv8.2 without PAC), so the proven machine class is reused and
-# the board differences are runtime-selected:
-#   * tools/mkadt.py --board grus        -> grus Apple Device Tree
-#   * boot-arg grus=1                    -> PM660L keys + Goodix GT9886 + rails
-# See PORT_GRUS.md and HARDWARE_MAP_GRUS.md.
-#
-#   gh workflow run xnu.yml -R YOU/ios-grus
-#   gh run watch
-#   gh run download RUN_ID -n xnu-kernel -D xnu/out
 on:
   workflow_dispatch:
     inputs:
@@ -28,7 +10,7 @@ on:
         description: RELEASE / DEVELOPMENT / DEBUG
         default: DEVELOPMENT
       machine_config:
-        description: xnu MACHINE_CONFIG (SWEET is correct for grus too, see above)
+        description: xnu MACHINE_CONFIG
         default: SWEET
       keep_going:
         description: make -k (collect all compile errors in one run)
@@ -84,12 +66,6 @@ jobs:
           sudo xcode-select -s "$XC"
           xcodebuild -version
           xcrun --find iig
-
-      - name: Sanity: grus patch present
-        run: |
-          ls xnu/patches | tail -4
-          grep -l "grus" xnu/patches/*.patch | head
-          grep -c 'GOODIX_GTX8_REG' xnu/patches/0082-grus-board-runtime.patch
 
       - name: Build
         working-directory: dxb
