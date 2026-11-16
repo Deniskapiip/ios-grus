@@ -1,0 +1,17 @@
+# Text: normalize to LF (Windows clones must not mangle the patch series).
+* text=auto eol=lf
+*.patch text eol=lf
+*.sh text eol=lf
+*.py text eol=lf
+*.c text eol=lf
+*.h text eol=lf
+*.cpp text eol=lf
+*.mk text eol=lf
+*.yml text eol=lf
+*.md text eol=lf
+# Binary artefacts that may live in the workspace
+*.adt binary
+*.dtb binary
+*.img binary
+*.simg binary
+*.bin binary
