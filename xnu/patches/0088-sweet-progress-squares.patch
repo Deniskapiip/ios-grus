@@ -1,8 +1,8 @@
 diff --git a/osfmk/kern/startup.c b/osfmk/kern/startup.c
-index 0941e5d..a01c2ed 100755
+index 0941e5d..7819830 100755
 --- a/osfmk/kern/startup.c
 +++ b/osfmk/kern/startup.c
-@@ -228,11 +228,41 @@ kernel_bootstrap_log(const char *message)
+@@ -228,11 +228,40 @@ kernel_bootstrap_log(const char *message)
  	kernel_debug_string_early(message);
  }
  
@@ -12,7 +12,6 @@ index 0941e5d..a01c2ed 100755
 +static void
 +sweetdbg_sq(int idx, int y0, uint32_t color)
 +{
-+	extern void *ml_io_map(vm_offset_t paddr, vm_size_t size);
 +	static volatile uint32_t *fb;
 +	if (fb == NULL) {
 +		fb = (volatile uint32_t *)ml_io_map((vm_offset_t)0x9c000000ULL,
@@ -29,7 +28,7 @@ index 0941e5d..a01c2ed 100755
 +	__asm__ volatile("dsb sy" ::: "memory");
 +}
 +#else
-+static inline void sweetdbg_sq(int idx, int y0, uint32_t color) { }
++static inline void sweetdbg_sq(int idx, int y0, uint32_t color) { (void)idx; (void)y0; (void)color; }
 +#endif
 +
  static inline void
@@ -44,7 +43,7 @@ index 0941e5d..a01c2ed 100755
  	}
  	kernel_debug_string_early(message);
  }
-@@ -378,6 +408,7 @@ kernel_startup_log(startup_subsystem_id_t subsystem)
+@@ -378,6 +407,7 @@ kernel_startup_log(startup_subsystem_id_t subsystem)
  		kernel_bootstrap_log(names[subsystem]);
  		if (startup_phase >= STARTUP_SUB_KPRINTF) {
  			kprintf("SWEETDBG: phase %s\n", names[subsystem]);
