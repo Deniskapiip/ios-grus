@@ -1,14 +1,15 @@
 diff --git a/osfmk/kern/startup.c b/osfmk/kern/startup.c
-index bec97fb..695ff05 100755
+index bec97fb..b978a6a 100755
 --- a/osfmk/kern/startup.c
 +++ b/osfmk/kern/startup.c
-@@ -405,6 +405,9 @@ kernel_startup_initialize_upto(startup_subsystem_id_t upto)
- 			kprintf("%s[%d, rank %d]: %p(%p)\n", __func__,
- 			    cur->subsystem, cur->rank, cur->func, cur->arg);
+@@ -407,6 +407,10 @@ kernel_startup_initialize_upto(startup_subsystem_id_t upto)
  		}
-+		if (cur->rank == STARTUP_RANK_MIDDLE) {
-+			kprintf("SWEETDBG: mid %p\n", cur->func);
-+		}
  		startup_phase = cur->subsystem - 1;
  		kernel_startup_log(cur->subsystem);
++		if (cur->rank == STARTUP_RANK_MIDDLE &&
++		    startup_phase >= STARTUP_SUB_KPRINTF) {
++			kprintf("SWEETDBG: mid %p\n", cur->func);
++		}
  		cur->func(cur->arg);
+ 		startup_entry_cur = ++cur;
+ 	}
