@@ -1,13 +1,12 @@
 diff --git a/osfmk/console/serial_console.c b/osfmk/console/serial_console.c
-index c86b9e7..a2dfa68 100755
+index c86b9e7..3b43b76 100755
 --- a/osfmk/console/serial_console.c
 +++ b/osfmk/console/serial_console.c
-@@ -242,9 +242,123 @@ get_cons_ops_index(void)
+@@ -242,9 +242,126 @@ get_cons_ops_index(void)
   * @param poll Whether or not this call should poll instead of going to sleep
   *             waiting for an interrupt when the hardware device isn't ready
   */
--static inline void
-+static inline 
++
 +#if defined(ARM64_BOARD_CONFIG_SWEET)
 +/*
 + * SWEET: a write-only framebuffer console, enabled with sweetcon=1.
@@ -72,8 +71,11 @@ index c86b9e7..a2dfa68 100755
 +	if (sweet_con_state < 0) {
 +		sweet_con_init();
 +	}
-+	if (sweet_con_state != 1 || sweet_con_fb == 0 || sweet_con_busy) {
++	if (sweet_con_state != 1 || sweet_con_fb == 0) {
 +		return sweet_con_state == 1;
++	}
++	if (sweet_con_busy) {
++		return 1;
 +	}
 +	sweet_con_busy = 1;
 +
@@ -116,7 +118,7 @@ index c86b9e7..a2dfa68 100755
 +}
 +#endif /* ARM64_BOARD_CONFIG_SWEET */
 +
-+void
+ static inline void
  _cnputc(char c, bool poll)
  {
 +#if defined(ARM64_BOARD_CONFIG_SWEET)
