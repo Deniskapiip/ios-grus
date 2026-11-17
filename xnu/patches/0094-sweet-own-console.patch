@@ -1,0 +1,129 @@
+diff --git a/osfmk/console/serial_console.c b/osfmk/console/serial_console.c
+index c86b9e7..a2dfa68 100755
+--- a/osfmk/console/serial_console.c
++++ b/osfmk/console/serial_console.c
+@@ -242,9 +242,123 @@ get_cons_ops_index(void)
+  * @param poll Whether or not this call should poll instead of going to sleep
+  *             waiting for an interrupt when the hardware device isn't ready
+  */
+-static inline void
++static inline 
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++/*
++ * SWEET: a write-only framebuffer console, enabled with sweetcon=1.
++ *
++ * Scrolling the stock console reads the framebuffer back, which on phone
++ * hardware mapped as device memory costs seconds per line, so the boot log
++ * looks frozen. This console never reads: when it reaches the bottom it
++ * clears the screen and starts again from the top. Text is written straight
++ * into the boot framebuffer.
++ */
++extern unsigned char iso_font[];
++extern vm_offset_t ml_io_map(vm_offset_t paddr, vm_size_t size);
++
++#define SWEET_CON_FB_PA     0x9c000000ULL
++#define SWEET_CON_FB_SIZE   (0x2300000ULL)
++#define SWEET_CON_W         1080u
++#define SWEET_CON_H         2340u
++#define SWEET_CON_SCALE     2u
++#define SWEET_CON_CW        (8u * SWEET_CON_SCALE)
++#define SWEET_CON_CH        (16u * SWEET_CON_SCALE)
++#define SWEET_CON_COLS      (SWEET_CON_W / SWEET_CON_CW)
++#define SWEET_CON_ROWS      (SWEET_CON_H / SWEET_CON_CH)
++
++static volatile uint32_t *sweet_con_fb;
++static unsigned int sweet_con_col, sweet_con_row;
++static int sweet_con_state = -1;
++static volatile int sweet_con_busy;
++
++static void
++sweet_con_clear(void)
++{
++	volatile uint32_t *fb = sweet_con_fb;
++	for (unsigned int y = 0; y < SWEET_CON_H; y++) {
++		for (unsigned int x = 0; x < SWEET_CON_W; x++) {
++			fb[y * SWEET_CON_W + x] = 0;
++		}
++	}
++	sweet_con_col = 0;
++	sweet_con_row = 0;
++}
++
++static void
++sweet_con_init(void)
++{
++	uint32_t on = 0;
++	sweet_con_state = 0;
++	if (!PE_parse_boot_argn("sweetcon", &on, sizeof(on)) || !on) {
++		return;
++	}
++	sweet_con_fb = (volatile uint32_t *)ml_io_map((vm_offset_t)SWEET_CON_FB_PA,
++	    (vm_size_t)SWEET_CON_FB_SIZE);
++	if (sweet_con_fb == 0) {
++		return;
++	}
++	sweet_con_state = 1;
++	sweet_con_clear();
++}
++
++static int
++sweet_con_putc(char c)
++{
++	if (sweet_con_state < 0) {
++		sweet_con_init();
++	}
++	if (sweet_con_state != 1 || sweet_con_fb == 0 || sweet_con_busy) {
++		return sweet_con_state == 1;
++	}
++	sweet_con_busy = 1;
++
++	if (c == '\r') {
++		sweet_con_col = 0;
++	} else if (c == '\n') {
++		sweet_con_col = 0;
++		sweet_con_row++;
++	} else if (c >= 0x20 && c < 0x7f) {
++		if (sweet_con_col >= SWEET_CON_COLS) {
++			sweet_con_col = 0;
++			sweet_con_row++;
++		}
++		if (sweet_con_row >= SWEET_CON_ROWS) {
++			sweet_con_clear();
++		}
++		const unsigned char *glyph = iso_font + ((unsigned char)c * 16);
++		unsigned int x0 = sweet_con_col * SWEET_CON_CW;
++		unsigned int y0 = sweet_con_row * SWEET_CON_CH;
++		for (unsigned int gy = 0; gy < 16; gy++) {
++			unsigned char bits = glyph[gy];
++			for (unsigned int gx = 0; gx < 8; gx++) {
++				uint32_t px = (bits & (0x80u >> gx)) ? 0xffffffffu : 0xff000000u;
++				for (unsigned int sy = 0; sy < SWEET_CON_SCALE; sy++) {
++					for (unsigned int sx = 0; sx < SWEET_CON_SCALE; sx++) {
++						sweet_con_fb[(y0 + gy * SWEET_CON_SCALE + sy) * SWEET_CON_W
++						    + x0 + gx * SWEET_CON_SCALE + sx] = px;
++					}
++				}
++			}
++		}
++		sweet_con_col++;
++	}
++	if (sweet_con_row >= SWEET_CON_ROWS) {
++		sweet_con_clear();
++	}
++	__asm__ volatile("dsb sy" ::: "memory");
++	sweet_con_busy = 0;
++	return 1;
++}
++#endif /* ARM64_BOARD_CONFIG_SWEET */
++
++void
+ _cnputc(char c, bool poll)
+ {
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	if (sweet_con_putc(c)) {
++		return;
++	}
++#endif
+ 	bool in_debugger = (kernel_debugger_entry_count > 0);
+ 	const uint32_t idx = get_cons_ops_index();
+ 
