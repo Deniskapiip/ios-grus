@@ -1,0 +1,15 @@
+diff --git a/osfmk/kern/zalloc.c b/osfmk/kern/zalloc.c
+index 182b44a..d16fe22 100755
+--- a/osfmk/kern/zalloc.c
++++ b/osfmk/kern/zalloc.c
+@@ -5425,6 +5425,10 @@ __startup_func
+ static void
+ pgz_init(void)
+ {
++	/* SWEET: PGZ setup hangs on this platform; skip it. */
++	kprintf("SWEETDBG: pgz_init skipped\n");
++	return;
++
+ 	if (!pgz_uses) {
+ 		return;
+ 	}
