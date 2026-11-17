@@ -1,0 +1,21 @@
+diff --git a/iokit/bsddev/IOKitBSDInit.cpp b/iokit/bsddev/IOKitBSDInit.cpp
+index d24ef67..fc55adf 100755
+--- a/iokit/bsddev/IOKitBSDInit.cpp
++++ b/iokit/bsddev/IOKitBSDInit.cpp
+@@ -683,11 +683,16 @@ IOFindBSDRoot( char * rootName, unsigned int rootNameSize,
+ 	assert(matching);
+ 	matching->setObject(gIOResourceMatchedKey, gIOBSDKey);
+ 
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	printf("SWEETDBG: skipping IOBSD match wait\n");
++#else
+ 	if ((service = IOService::waitForMatchingService(matching, 30ULL * kSecondScale))) {
+ 		OSSafeReleaseNULL(service);
+ 	} else {
+ 		IOLog("!BSD\n");
+ 	}
++#endif
++	printf("SWEETDBG: past IOBSD wait\n");
+ 	matching->release();
+ 	matching = NULL;
+ 
