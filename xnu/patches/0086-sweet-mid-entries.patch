@@ -1,5 +1,5 @@
 diff --git a/osfmk/kern/startup.c b/osfmk/kern/startup.c
-index bec97fb..7179709 100755
+index bec97fb..0941e5d 100755
 --- a/osfmk/kern/startup.c
 +++ b/osfmk/kern/startup.c
 @@ -231,9 +231,8 @@ kernel_bootstrap_log(const char *message)
@@ -14,14 +14,13 @@ index bec97fb..7179709 100755
  	}
  	kernel_debug_string_early(message);
  }
-@@ -407,6 +406,10 @@ kernel_startup_initialize_upto(startup_subsystem_id_t upto)
- 		}
- 		startup_phase = cur->subsystem - 1;
- 		kernel_startup_log(cur->subsystem);
-+		if (cur->rank == STARTUP_RANK_MIDDLE &&
-+		    startup_phase >= STARTUP_SUB_KPRINTF) {
-+			kprintf("SWEETDBG: mid %p\n", cur->func);
+@@ -377,6 +376,9 @@ kernel_startup_log(startup_subsystem_id_t subsystem)
+ 
+ 	if (subsystem < sizeof(names) / sizeof(names[0]) && names[subsystem]) {
+ 		kernel_bootstrap_log(names[subsystem]);
++		if (startup_phase >= STARTUP_SUB_KPRINTF) {
++			kprintf("SWEETDBG: phase %s\n", names[subsystem]);
 +		}
- 		cur->func(cur->arg);
- 		startup_entry_cur = ++cur;
  	}
+ 	logged = subsystem;
+ }
