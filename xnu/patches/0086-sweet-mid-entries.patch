@@ -1,8 +1,20 @@
 diff --git a/osfmk/kern/startup.c b/osfmk/kern/startup.c
-index bec97fb..b978a6a 100755
+index bec97fb..7179709 100755
 --- a/osfmk/kern/startup.c
 +++ b/osfmk/kern/startup.c
-@@ -407,6 +407,10 @@ kernel_startup_initialize_upto(startup_subsystem_id_t upto)
+@@ -231,9 +231,8 @@ kernel_bootstrap_log(const char *message)
+ static inline void
+ kernel_bootstrap_thread_log(const char *message)
+ {
+-	if ((startup_debug & STARTUP_DEBUG_VERBOSE) &&
+-	    startup_phase >= STARTUP_SUB_KPRINTF) {
+-		kprintf("kernel_bootstrap_thread: %s\n", message);
++	if (startup_phase >= STARTUP_SUB_KPRINTF) {
++		kprintf("SWEETDBG: kbt %s\n", message);
+ 	}
+ 	kernel_debug_string_early(message);
+ }
+@@ -407,6 +406,10 @@ kernel_startup_initialize_upto(startup_subsystem_id_t upto)
  		}
  		startup_phase = cur->subsystem - 1;
  		kernel_startup_log(cur->subsystem);
