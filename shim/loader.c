@@ -76,6 +76,76 @@ static int magic_ok(const char *m)
 
 typedef void (*xnu_entry_t)(uint64_t boot_args_pa);
 
+/*
+ * The kernel keeps a 4 MiB ring of every console byte it printed
+ * (sweet_log_ring in bsd/dev/sweet_ufs.c). After a hang the phone is power
+ * cycled, DRAM still holds that ring, and the kernel's BSS (where the ring
+ * lives) is zeroed by _this_ boot only after we read it. So print what the
+ * previous boot managed to say, then wipe the counter and stop: the next
+ * power cycle boots normally.
+ *
+ * The two addresses are kernel links (kernel.development.sweet); they must be
+ * refreshed for every kernel build (tools/98_find_log_syms.py prints them).
+ */
+#define SWEET_LOG_TOTAL_VA	0xfffffe0007c4e5f0ULL
+#define SWEET_LOG_RING_VA	0xfffffe0007c4e5f8ULL
+#define SWEET_LOG_SIZE		(4u << 20)
+#define SWEET_LOG_LINES		44
+#define SWEET_LOG_COLS		78
+
+static void sweet_dram_log(uintptr_t pa_of_va_base)
+{
+	volatile uint64_t *total = (volatile uint64_t *)(SWEET_LOG_TOTAL_VA + pa_of_va_base);
+	volatile const char *ring = (volatile const char *)(SWEET_LOG_RING_VA + pa_of_va_base);
+	uint64_t n = *total;
+
+	if (n == 0 || n > 512ull * 1024 * 1024) {
+		con_hex("LOGPA", (uint64_t)SWEET_LOG_TOTAL_VA + pa_of_va_base);
+		con_hex("LOGTOT", n);
+		return;
+	}
+
+	static char lines[SWEET_LOG_LINES][SWEET_LOG_COLS];
+	int head = 0, count = 0, k = 0;
+	char cur[SWEET_LOG_COLS];
+
+	uint64_t start = (n > (uint64_t)SWEET_LOG_SIZE) ? n - SWEET_LOG_SIZE : 0;
+	for (uint64_t i = start; i < n; i++) {
+		char c = ring[i % SWEET_LOG_SIZE];
+		if (c == '\n') {
+			cur[k] = 0;
+			for (int j = 0; j <= k; j++)
+				lines[head][j] = cur[j];
+			head = (head + 1) % SWEET_LOG_LINES;
+			if (count < SWEET_LOG_LINES)
+				count++;
+			k = 0;
+		} else if (c != '\r' && k < SWEET_LOG_COLS - 1) {
+			cur[k++] = c;
+		}
+	}
+	if (k) {
+		cur[k] = 0;
+		for (int j = 0; j <= k; j++)
+			lines[head][j] = cur[j];
+		head = (head + 1) % SWEET_LOG_LINES;
+		if (count < SWEET_LOG_LINES)
+			count++;
+	}
+
+	con_clear(0x00000000);
+	con_puts("==== kernel log from DRAM ====");
+	for (int i = 0; i < count; i++) {
+		int idx = (head - count + i + SWEET_LOG_LINES) % SWEET_LOG_LINES;
+		con_puts(lines[idx]);
+	}
+	con_puts("==== end (power-cycle to boot) ====");
+
+	*total = 0;
+	for (;;)
+		__asm__ volatile("wfi");
+}
+
 const char *loader_boot(uintptr_t dtb)
 {
 	uint64_t rd_start, rd_end;
@@ -98,6 +168,9 @@ const char *loader_boot(uintptr_t dtb)
 	con_hex2("PHYS", "base=", p->phys_base, "size=", p->mem_size);
 	con_hex("VIRT", p->virt_base);
 	con_hex("ENTRY", p->entry_va);
+
+	/* Previous boot's console log, if it hung: show it and stop. */
+	sweet_dram_log(pa_of_va_base);
 
 	/* The payload must not overlap where the kernel goes. */
 	if (rd_end > p->phys_base && rd_start < p->phys_base + p->mem_size)

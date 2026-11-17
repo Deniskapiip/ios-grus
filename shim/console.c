@@ -66,6 +66,23 @@ void con_skip(void)
 	row++;
 }
 
+/* Plain text, one console line per '\n'; no scrolling (callers pre-limit). */
+void con_puts(const char *s)
+{
+	int col = 0;
+	while (*s) {
+		char c = *s++;
+		if (c == '\n') {
+			row++;
+			col = 0;
+			continue;
+		}
+		if (c != '\r')
+			put_char(col++, c, WHITE);
+	}
+	row++;
+}
+
 void con_str(const char *label, const char *s)
 {
 	put_str(0, label, YELLOW);
