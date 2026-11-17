@@ -1,0 +1,51 @@
+diff --git a/bsd/dev/sweet_ufs.c b/bsd/dev/sweet_ufs.c
+index 6b926fe..7cb0f1f 100755
+--- a/bsd/dev/sweet_ufs.c
++++ b/bsd/dev/sweet_ufs.c
+@@ -607,6 +607,7 @@ sweet_ufs_init(void)
+ 	su.cache = (cache == 1);
+ 	su.wait = (wait == 1);
+ 
++	printf("SWEETDBG: ufs init reg 0x%llx size 0x%x\n", (unsigned long long)reg[0], (unsigned)reg[1]);
+ 	su.regs = ml_io_map(reg[0], reg[1]);
+ 	if (kmem_alloc_contig(kernel_map, &su.dma, DMA_SIZE, PAGE_MASK, 0, 0,
+ 	    KMA_DATA | KMA_ZERO | KMA_PERMANENT, VM_KERN_MEMORY_IOKIT) != KERN_SUCCESS) {
+@@ -622,6 +623,7 @@ sweet_ufs_init(void)
+ 	su.secsize = DEV_BSIZE;
+ 
+ 	lck_mtx_lock(&sweet_ufs_lock);
++	printf("SWEETDBG: ufs take_over_host\n");
+ 	error = ufs_take_over_host();
+ 	if (!error) {
+ 		static const uint8_t tur[6] = { 0x00 };
+@@ -629,10 +631,12 @@ sweet_ufs_init(void)
+ 		for (int i = 0; i < 3 && (error = ufs_scsi(tur, sizeof(tur), 0, false)); i++) {
+ 		}
+ 	}
++	printf("SWEETDBG: ufs tur rc=%d\n", error);
+ 	if (!error) {
+ 		error = ufs_find_partition(want);
+ 	}
+ 	lck_mtx_unlock(&sweet_ufs_lock);
++	printf("SWEETDBG: ufs find rc=%d blocks=%llu\n", error, (unsigned long long)su.nblocks);
+ 	if (error) {
+ 		return error;
+ 	}
+diff --git a/iokit/bsddev/IOKitBSDInit.cpp b/iokit/bsddev/IOKitBSDInit.cpp
+index e6c74aa..d24ef67 100755
+--- a/iokit/bsddev/IOKitBSDInit.cpp
++++ b/iokit/bsddev/IOKitBSDInit.cpp
+@@ -770,10 +770,13 @@ IOFindBSDRoot( char * rootName, unsigned int rootNameSize,
+ //
+ //	SWEET: root on a GPT partition of the internal UFS (bsd/dev/sweet_ufs.c)
+ //
++	printf("SWEETDBG: IOFindBSDRoot got rd=%s\n", rdBootVar);
+ 	if (strcmp(rdBootVar, "ufsroot0") == 0) {
+ 		extern int sweet_ufs_rootdev(dev_t *dev);
+ 		OSSafeReleaseNULL(matching);
++		printf("SWEETDBG: calling sweet_ufs_rootdev\n");
+ 		int ufs_error = sweet_ufs_rootdev(root);
++		printf("SWEETDBG: sweet_ufs_rootdev rc=%d\n", ufs_error);
+ 		if (ufs_error) {
+ 			panic("IOFindBSDRoot: SWEET UFS root %s unavailable: %d", rdBootVar, ufs_error);
+ 		}
