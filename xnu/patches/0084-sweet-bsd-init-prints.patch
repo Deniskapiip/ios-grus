@@ -1,0 +1,34 @@
+diff --git a/bsd/kern/bsd_init.c b/bsd/kern/bsd_init.c
+index bb2a2bf..973095f 100755
+--- a/bsd/kern/bsd_init.c
++++ b/bsd/kern/bsd_init.c
+@@ -476,6 +476,7 @@ bsd_rooted_ramdisk(void)
+ void
+ bsd_init(void)
+ {
++	printf("SWEETDBG: bsd_init enter\n");
+ 	struct uthread *ut;
+ 	vnode_t init_rootvnode = NULLVP;
+ 	struct proc_ro_data kernproc_ro_data = {
+@@ -499,6 +500,7 @@ bsd_init(void)
+ #endif
+ 
+ 	throttle_init();
++	printf("SWEETDBG: bsd_init throttle_init done\n");
+ 
+ 	printf(copyright);
+ 
+@@ -878,10 +880,12 @@ bsd_init(void)
+ 		netboot = (mountroot == netboot_mountroot);
+ #endif
+ 
+-		bsd_init_kprintf("vfs_mountroot\n");
++		printf("SWEETDBG: calling vfs_mountroot\n");
+ 		if (0 == (err = vfs_mountroot())) {
++			printf("SWEETDBG: vfs_mountroot ok\n");
+ 			break;
+ 		}
++		printf("SWEETDBG: vfs_mountroot failed rc=%d\n", err);
+ 		rootdevice[0] = '\0';
+ #if CONFIG_NETBOOT
+ 		if (netboot) {
