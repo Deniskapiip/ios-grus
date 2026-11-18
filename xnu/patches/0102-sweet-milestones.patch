@@ -1,5 +1,5 @@
 diff --git a/osfmk/kern/startup.c b/osfmk/kern/startup.c
-index 162360c..883b86f 100755
+index 162360c..cee261f 100755
 --- a/osfmk/kern/startup.c
 +++ b/osfmk/kern/startup.c
 @@ -385,6 +385,39 @@ static inline int sweet_entry_seq(void) { return 0; }
@@ -30,7 +30,7 @@ index 162360c..883b86f 100755
 +	(void)slot;
 +	for (int y = 0; y < 60; y++) {
 +		for (int x = 0; x < 60; x++) {
-+			fb[(2220 + y) * 1080 + 990 + x] = color;
++			fb[(2220 + y) * 1080 + 500 + x] = color;
 +		}
 +	}
 +	__asm__ volatile("dsb sy" ::: "memory");

@@ -1,5 +1,5 @@
 diff --git a/bsd/kern/bsd_init.c b/bsd/kern/bsd_init.c
-index fb30cdd..cfbd997 100755
+index fb30cdd..17e926e 100755
 --- a/bsd/kern/bsd_init.c
 +++ b/bsd/kern/bsd_init.c
 @@ -506,10 +506,39 @@ sweet_beacon(int idx, uint32_t color)
@@ -25,7 +25,7 @@ index fb30cdd..cfbd997 100755
 +	}
 +	for (int y = 0; y < 60; y++) {
 +		for (int x = 0; x < 60; x++) {
-+			fb[(2220 + y) * 1080 + 910 + x] = color;
++			fb[(2220 + y) * 1080 + 500 + x] = color;
 +		}
 +	}
 +	__asm__ volatile("dsb sy" ::: "memory");
@@ -38,7 +38,7 @@ index fb30cdd..cfbd997 100755
  bsd_init(void)
  {
  	printf("SWEETDBG: bsd_init enter\n");
-+	sweet_bsd_mark(0xffffffffu);
++	sweet_bsd_mark(0xff808080u);
  	sweet_beacon(0, 0xff00ff00u);
  	struct uthread *ut;
  	vnode_t init_rootvnode = NULLVP;
@@ -46,7 +46,7 @@ index fb30cdd..cfbd997 100755
  	/* Initialize the file systems. */
  	bsd_init_kprintf("calling vfsinit\n");
  	vfsinit();
-+	sweet_bsd_mark(0xffffff00u);
++	sweet_bsd_mark(0xff0080ffu);
  
  #if defined(ARM64_BOARD_CONFIG_SWEET)
  	/* AMFI's MAC policy is built in on SWEET (bsd/kern/sweet_amfi.c). */
@@ -54,7 +54,7 @@ index fb30cdd..cfbd997 100755
  	 */
  	bsd_init_kprintf("calling net_init_run\n");
  	net_init_run();
-+	sweet_bsd_mark(0xffff8000u);
++	sweet_bsd_mark(0xff80ff00u);
  #endif /* NETWORKING */
  
  	bsd_init_kprintf("calling inittodr\n");
@@ -62,10 +62,10 @@ index fb30cdd..cfbd997 100755
  
  		sweet_beacon(1, 0xff0000ffu);
  		printf("SWEETDBG: calling vfs_mountroot\n");
-+	sweet_bsd_mark(0xff0000ffu);
++	sweet_bsd_mark(0xffff0080u);
  		if (0 == (err = vfs_mountroot())) {
  			printf("SWEETDBG: vfs_mountroot ok\n");
-+			sweet_bsd_mark(0xff00ff00);
++			sweet_bsd_mark(0xff4000ff);
  			sweet_beacon(2, 0xffffffffu);
  			break;
  		}
@@ -73,7 +73,7 @@ index fb30cdd..cfbd997 100755
  
  	bsd_init_kprintf("bsd_do_post - done");
  
-+	sweet_bsd_mark(0xffff00ff);
++	sweet_bsd_mark(0xffffffff);
  	load_init_program(p);
  	lock_trace = 1;
  }
