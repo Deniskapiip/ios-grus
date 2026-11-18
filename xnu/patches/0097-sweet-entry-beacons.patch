@@ -1,8 +1,8 @@
 diff --git a/osfmk/kern/startup.c b/osfmk/kern/startup.c
-index 0941e5d..1a226e6 100755
+index 0941e5d..c58a820 100755
 --- a/osfmk/kern/startup.c
 +++ b/osfmk/kern/startup.c
-@@ -343,6 +343,47 @@ kernel_startup_tunable_dt_init(const struct startup_tunable_dt_spec *spec)
+@@ -343,6 +343,48 @@ kernel_startup_tunable_dt_init(const struct startup_tunable_dt_spec *spec)
  	}
  }
  
@@ -13,7 +13,9 @@ index 0941e5d..1a226e6 100755
 + * screen. No framebuffer read and no console lock, so it keeps working even
 + * when the console stops printing.
 + */
-+extern vm_offset_t ml_io_map(vm_offset_t paddr, vm_size_t size);
++#include <console/video_console.h>
++/* the video console already mapped it: reuse, never map twice */
++extern struct vc_info vinfo;
 +
 +static int
 +sweet_entry_seq(void)
@@ -27,9 +29,8 @@ index 0941e5d..1a226e6 100755
 +{
 +	static volatile uint32_t *fb;
 +
-+	if (fb == 0) {
-+		fb = (volatile uint32_t *)ml_io_map((vm_offset_t)0x9c000000ULL,
-+		    (vm_size_t)0x2300000ULL);
++	if (fb == 0 && vinfo.v_baseaddr != 0) {
++		fb = (volatile uint32_t *)vinfo.v_baseaddr;
 +	}
 +	if (fb == 0) {
 +		return;
@@ -50,7 +51,7 @@ index 0941e5d..1a226e6 100755
  static void
  kernel_startup_log(startup_subsystem_id_t subsystem)
  {
-@@ -407,6 +448,7 @@ kernel_startup_initialize_upto(startup_subsystem_id_t upto)
+@@ -407,6 +449,7 @@ kernel_startup_initialize_upto(startup_subsystem_id_t upto)
  			kprintf("%s[%d, rank %d]: %p(%p)\n", __func__,
  			    cur->subsystem, cur->rank, cur->func, cur->arg);
  		}
