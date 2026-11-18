@@ -1,0 +1,53 @@
+diff --git a/osfmk/kern/startup.c b/osfmk/kern/startup.c
+index 0941e5d..c7729cf 100755
+--- a/osfmk/kern/startup.c
++++ b/osfmk/kern/startup.c
+@@ -343,6 +343,40 @@ kernel_startup_tunable_dt_init(const struct startup_tunable_dt_spec *spec)
+ 	}
+ }
+ 
++
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++/*
++ * SWEET: one write-only colour square per startup entry, at the bottom of the
++ * screen. No framebuffer read and no console lock, so it keeps working even
++ * when the console stops printing.
++ */
++extern vm_offset_t ml_io_map(vm_offset_t paddr, vm_size_t size);
++
++static void
++sweet_entry_beacon(int idx, uint32_t color)
++{
++	static volatile uint32_t *fb;
++
++	if (fb == 0) {
++		fb = (volatile uint32_t *)ml_io_map((vm_offset_t)0x9c000000ULL,
++		    (vm_size_t)0x2300000ULL);
++	}
++	if (fb == 0) {
++		return;
++	}
++	idx %= 20;
++	for (int y = 0; y < 40; y++) {
++		for (int x = 0; x < 40; x++) {
++			fb[(2140 + y) * 1080 + idx * 44 + x] = color;
++		}
++	}
++	__asm__ volatile("dsb sy" ::: "memory");
++}
++#else
++static inline int sweet_entry_seq(void) { return 0; }
++static inline void sweet_entry_beacon(int idx, uint32_t color) { (void)idx; (void)color; }
++#endif
++
+ static void
+ kernel_startup_log(startup_subsystem_id_t subsystem)
+ {
+@@ -407,6 +441,7 @@ kernel_startup_initialize_upto(startup_subsystem_id_t upto)
+ 			kprintf("%s[%d, rank %d]: %p(%p)\n", __func__,
+ 			    cur->subsystem, cur->rank, cur->func, cur->arg);
+ 		}
++		sweet_entry_beacon(sweet_entry_seq(), 0xff00ffffu);
+ 		startup_phase = cur->subsystem - 1;
+ 		kernel_startup_log(cur->subsystem);
+ 		cur->func(cur->arg);
