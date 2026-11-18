@@ -1,0 +1,145 @@
+--- a/osfmk/arm64/locore.s
++++ b/osfmk/arm64/locore.s
+@@ -928,8 +928,23 @@
+ 	 *                       (1)                                 (2)
+ 	 */
+ 
++#if (CONFIG_KERNEL_INTEGRITY && KERNEL_INTEGRITY_WT) || defined(ARM64_BOARD_CONFIG_SWEET)
+ 	mov		x0, #(CPACR_FPEN_ENABLE)
+ 	msr		CPACR_EL1, x0
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	mrs		x0, TCR_EL1
++	mov		x1, #1
++	lsl		x1, x1, #37
++	orr		x0, x0, x1
++	mov		x1, #1
++	lsl		x1, x1, #51
++	bic		x0, x0, x1
++	msr		TCR_EL1, x0
++	mrs		x0, SCTLR_EL1
++	bic		x0, x0, #2
++	msr		SCTLR_EL1, x0
++	isb		sy
++#endif
+ #endif
+ 
+ 	/* Establish this thread's debug state as the live state on the selected CPU. */
+--- a/osfmk/arm64/sleh.c
++++ b/osfmk/arm64/sleh.c
+@@ -193,6 +193,19 @@
+ 
+ struct proc;
+ 
++extern void *get_bsdthreadtask_info(thread_t);
++extern int proc_getpid(struct proc *);
++
++uint64_t initproc_last_elr = 0;
++uint64_t initproc_last_far = 0;
++uint32_t initproc_last_esr = 0;
++uint64_t initproc_last_lr = 0;
++uint64_t initproc_last_sp = 0;
++uint64_t initproc_last_x0 = 0;
++uint64_t initproc_last_x1 = 0;
++uint64_t initproc_last_cpacr = 0;
++uint64_t initproc_last_tcr = 0;
++
+ typedef uint32_t arm64_instr_t;
+ 
+ extern void
+@@ -629,6 +642,29 @@
+ 	}
+ #endif
+ 	bool is_user = PSR64_IS_USER(get_saved_state_cpsr(state));
++
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	if (is_user && class != ESR_EC_SVC_64) {
++		struct proc *p = (struct proc *)get_bsdthreadtask_info(thread);
++		if (p != NULL && proc_getpid(p) == 1) {
++			initproc_last_elr = (uint64_t)get_saved_state_pc(state);
++			initproc_last_far = (uint64_t)far;
++			initproc_last_esr = esr;
++			initproc_last_lr = (uint64_t)get_saved_state_lr(state);
++			initproc_last_sp = (uint64_t)get_saved_state_sp(state);
++			initproc_last_x0 = (uint64_t)get_saved_state_reg(state, 0);
++			initproc_last_x1 = (uint64_t)get_saved_state_reg(state, 1);
++			MRS(initproc_last_cpacr, "CPACR_EL1");
++			MRS(initproc_last_tcr, "TCR_EL1");
++			printf("INITPROC_FAULT: ELR=0x%llx FAR=0x%llx ESR=0x%x (class 0x%x iss 0x%x) LR=0x%llx SP=0x%llx x0=0x%llx x1=0x%llx CPACR=0x%llx TCR=0x%llx\n",
++			    initproc_last_elr, initproc_last_far, initproc_last_esr,
++			    (unsigned int)class, (unsigned int)ESR_ISS(esr),
++			    initproc_last_lr, initproc_last_sp,
++			    initproc_last_x0, initproc_last_x1,
++			    initproc_last_cpacr, initproc_last_tcr);
++		}
++	}
++#endif
+ 
+ 	/*
+ 	 * Use KERNEL_DEBUG_CONSTANT_IST here to avoid producing tracepoints
+--- a/bsd/kern/kern_exit.c
++++ b/bsd/kern/kern_exit.c
+@@ -1822,13 +1822,41 @@
+ 	sync(p, (void *)NULL, (int *)NULL);
+ 
+ 	if (p->p_exit_reason == OS_REASON_NULL) {
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++		extern uint64_t initproc_last_elr;
++		extern uint64_t initproc_last_far;
++		extern uint32_t initproc_last_esr;
++		extern uint64_t initproc_last_lr;
++		extern uint64_t initproc_last_sp;
++		extern uint64_t initproc_last_cpacr;
++		extern uint64_t initproc_last_tcr;
++		panic_with_options(0, NULL, DEBUGGER_OPTION_INITPROC_PANIC, "%s -- no exit reason available -- (signal %d, exit status %d %s) ELR=0x%llx FAR=0x%llx ESR=0x%x LR=0x%llx SP=0x%llx CPACR=0x%llx TCR=0x%llx",
++		    prefix_str, WTERMSIG(rv), WEXITSTATUS(rv), ((proc_getcsflags(p) & CS_KILLED) ? "CS_KILLED" : ""),
++		    initproc_last_elr, initproc_last_far, initproc_last_esr, initproc_last_lr, initproc_last_sp, initproc_last_cpacr, initproc_last_tcr);
++#else
+ 		panic_with_options(0, NULL, DEBUGGER_OPTION_INITPROC_PANIC, "%s -- no exit reason available -- (signal %d, exit status %d %s)",
+ 		    prefix_str, WTERMSIG(rv), WEXITSTATUS(rv), ((proc_getcsflags(p) & CS_KILLED) ? "CS_KILLED" : ""));
++#endif
+ 	} else {
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++		extern uint64_t initproc_last_elr;
++		extern uint64_t initproc_last_far;
++		extern uint32_t initproc_last_esr;
++		extern uint64_t initproc_last_lr;
++		extern uint64_t initproc_last_sp;
++		extern uint64_t initproc_last_cpacr;
++		extern uint64_t initproc_last_tcr;
++		panic_with_options(0, NULL, DEBUGGER_OPTION_INITPROC_PANIC, "%s %s -- exit reason namespace %d subcode 0x%llx description: %." LAUNCHD_PANIC_REASON_STRING_MAXLEN "s ELR=0x%llx FAR=0x%llx ESR=0x%x LR=0x%llx SP=0x%llx CPACR=0x%llx TCR=0x%llx",
++		    ((proc_getcsflags(p) & CS_KILLED) ? "CS_KILLED" : ""),
++		    prefix_str, p->p_exit_reason->osr_namespace, p->p_exit_reason->osr_code,
++		    exit_reason_desc ? exit_reason_desc : "none",
++		    initproc_last_elr, initproc_last_far, initproc_last_esr, initproc_last_lr, initproc_last_sp, initproc_last_cpacr, initproc_last_tcr);
++#else
+ 		panic_with_options(0, NULL, DEBUGGER_OPTION_INITPROC_PANIC, "%s %s -- exit reason namespace %d subcode 0x%llx description: %." LAUNCHD_PANIC_REASON_STRING_MAXLEN "s",
+ 		    ((proc_getcsflags(p) & CS_KILLED) ? "CS_KILLED" : ""),
+ 		    prefix_str, p->p_exit_reason->osr_namespace, p->p_exit_reason->osr_code,
+ 		    exit_reason_desc ? exit_reason_desc : "none");
++#endif
+ 	}
+ }
+ 
+--- a/bsd/kern/kern_exec.c
++++ b/bsd/kern/kern_exec.c
+@@ -6926,7 +6926,20 @@
+ 		}
+ 	}
+ 
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	extern uint64_t initproc_last_elr;
++	extern uint64_t initproc_last_far;
++	extern uint32_t initproc_last_esr;
++	extern uint64_t initproc_last_lr;
++	extern uint64_t initproc_last_sp;
++	extern uint64_t initproc_last_cpacr;
++	extern uint64_t initproc_last_tcr;
++	panic("Process 1 exec of %s failed, errno %d ELR=0x%llx FAR=0x%llx ESR=0x%x LR=0x%llx SP=0x%llx CPACR=0x%llx TCR=0x%llx",
++	    ((i == 0) ? "<null>" : init_programs[i - 1]), error,
++	    initproc_last_elr, initproc_last_far, initproc_last_esr, initproc_last_lr, initproc_last_sp, initproc_last_cpacr, initproc_last_tcr);
++#else
+ 	panic("Process 1 exec of %s failed, errno %d", ((i == 0) ? "<null>" : init_programs[i - 1]), error);
++#endif
+ }
+ 
+ /*
