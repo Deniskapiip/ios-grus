@@ -1,0 +1,47 @@
+diff --git a/osfmk/kern/startup.c b/osfmk/kern/startup.c
+index 3706165..162360c 100755
+--- a/osfmk/kern/startup.c
++++ b/osfmk/kern/startup.c
+@@ -752,18 +752,42 @@ kernel_bootstrap_thread(void)
+ 	// Reset interrupts masked timeout before we enable interrupts
+ 	ml_spin_debug_clear_self();
+ #endif
++	if (startup_phase >= STARTUP_SUB_KPRINTF) {
++		kprintf("SWEETSTEP spllo before\n");
++	}
+ 	(void) spllo();         /* Allow interruptions */
++	if (startup_phase >= STARTUP_SUB_KPRINTF) {
++		kprintf("SWEETSTEP spllo after\n");
++	}
+ 
+ 	/*
+ 	 * This will start displaying progress to the user, start as early as possible
+ 	 */
++	if (startup_phase >= STARTUP_SUB_KPRINTF) {
++		kprintf("SWEETSTEP initialize_screen before\n");
++	}
+ 	initialize_screen(NULL, kPEAcquireScreen);
++	if (startup_phase >= STARTUP_SUB_KPRINTF) {
++		kprintf("SWEETSTEP initialize_screen after\n");
++	}
+ 
+ 	/*
+ 	 *	Initialize the shared region module.
+ 	 */
++	if (startup_phase >= STARTUP_SUB_KPRINTF) {
++		kprintf("SWEETSTEP vm_commpage_init before\n");
++	}
+ 	vm_commpage_init();
++	if (startup_phase >= STARTUP_SUB_KPRINTF) {
++		kprintf("SWEETSTEP vm_commpage_init after\n");
++	}
++	if (startup_phase >= STARTUP_SUB_KPRINTF) {
++		kprintf("SWEETSTEP vm_commpage_text_init before\n");
++	}
+ 	vm_commpage_text_init();
++	if (startup_phase >= STARTUP_SUB_KPRINTF) {
++		kprintf("SWEETSTEP vm_commpage_text_init after\n");
++	}
+ 
+ #if CONFIG_MACF
+ 	kernel_bootstrap_log("mac_policy_initmach");
