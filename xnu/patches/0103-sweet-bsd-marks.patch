@@ -1,0 +1,79 @@
+diff --git a/bsd/kern/bsd_init.c b/bsd/kern/bsd_init.c
+index fb30cdd..cfbd997 100755
+--- a/bsd/kern/bsd_init.c
++++ b/bsd/kern/bsd_init.c
+@@ -506,10 +506,39 @@ sweet_beacon(int idx, uint32_t color)
+ static inline void sweet_beacon(int idx, uint32_t color) { (void)idx; (void)color; }
+ #endif
+ 
++
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++/* SWEET: one repainted square (next to the boot one) for the steps inside bsd_init. */
++#include <console/video_console.h>
++extern struct vc_info vinfo;
++
++static void
++sweet_bsd_mark(uint32_t color)
++{
++	static volatile uint32_t *fb;
++
++	if (fb == 0 && vinfo.v_baseaddr != 0) {
++		fb = (volatile uint32_t *)vinfo.v_baseaddr;
++	}
++	if (fb == 0) {
++		return;
++	}
++	for (int y = 0; y < 60; y++) {
++		for (int x = 0; x < 60; x++) {
++			fb[(2220 + y) * 1080 + 910 + x] = color;
++		}
++	}
++	__asm__ volatile("dsb sy" ::: "memory");
++}
++#else
++static inline void sweet_bsd_mark(uint32_t color) { (void)color; }
++#endif
++
+ void
+ bsd_init(void)
+ {
+ 	printf("SWEETDBG: bsd_init enter\n");
++	sweet_bsd_mark(0xffffffffu);
+ 	sweet_beacon(0, 0xff00ff00u);
+ 	struct uthread *ut;
+ 	vnode_t init_rootvnode = NULLVP;
+@@ -726,6 +755,7 @@ bsd_init(void)
+ 	/* Initialize the file systems. */
+ 	bsd_init_kprintf("calling vfsinit\n");
+ 	vfsinit();
++	sweet_bsd_mark(0xffffff00u);
+ 
+ #if defined(ARM64_BOARD_CONFIG_SWEET)
+ 	/* AMFI's MAC policy is built in on SWEET (bsd/kern/sweet_amfi.c). */
+@@ -899,6 +929,7 @@ bsd_init(void)
+ 	 */
+ 	bsd_init_kprintf("calling net_init_run\n");
+ 	net_init_run();
++	sweet_bsd_mark(0xffff8000u);
+ #endif /* NETWORKING */
+ 
+ 	bsd_init_kprintf("calling inittodr\n");
+@@ -916,8 +947,10 @@ bsd_init(void)
+ 
+ 		sweet_beacon(1, 0xff0000ffu);
+ 		printf("SWEETDBG: calling vfs_mountroot\n");
++	sweet_bsd_mark(0xff0000ffu);
+ 		if (0 == (err = vfs_mountroot())) {
+ 			printf("SWEETDBG: vfs_mountroot ok\n");
++			sweet_bsd_mark(0xff00ff00);
+ 			sweet_beacon(2, 0xffffffffu);
+ 			break;
+ 		}
+@@ -1138,6 +1171,7 @@ bsdinit_task(void)
+ 
+ 	bsd_init_kprintf("bsd_do_post - done");
+ 
++	sweet_bsd_mark(0xffff00ff);
+ 	load_init_program(p);
+ 	lock_trace = 1;
+ }
