@@ -1,8 +1,8 @@
 diff --git a/osfmk/console/serial_console.c b/osfmk/console/serial_console.c
-index c86b9e7..3b43b76 100755
+index c86b9e7..ad17cc8 100755
 --- a/osfmk/console/serial_console.c
 +++ b/osfmk/console/serial_console.c
-@@ -242,9 +242,126 @@ get_cons_ops_index(void)
+@@ -242,9 +242,132 @@ get_cons_ops_index(void)
   * @param poll Whether or not this call should poll instead of going to sleep
   *             waiting for an interrupt when the hardware device isn't ready
   */
@@ -48,11 +48,17 @@ index c86b9e7..3b43b76 100755
 +	sweet_con_row = 0;
 +}
 +
++extern void *kernel_map;
++
 +static void
 +sweet_con_init(void)
 +{
 +	uint32_t on = 0;
 +	sweet_con_state = 0;
++	/* pmap and the kernel map must exist before anything can be mapped. */
++	if (kernel_map == 0) {
++		return;
++	}
 +	if (!PE_parse_boot_argn("sweetcon", &on, sizeof(on)) || !on) {
 +		return;
 +	}
