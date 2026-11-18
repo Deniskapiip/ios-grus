@@ -1,0 +1,28 @@
+diff --git a/osfmk/kern/startup.c b/osfmk/kern/startup.c
+index d4d30c8..78f20ea 100755
+--- a/osfmk/kern/startup.c
++++ b/osfmk/kern/startup.c
+@@ -872,8 +872,21 @@ kernel_bootstrap_thread(void)
+ 	}
+ #endif
+ 
+-#ifndef BCM2837
+-	kernel_bootstrap_log("trust_cache_init");
++#if !defined(BCM2837) && !defined(ARM64_BOARD_CONFIG_SWEET)
++	/*
++	 * SWEET: there is no Image4 and no signed trust cache on this hardware
++	 * (the AMFI port already reports "trust caches unavailable"). HakiOS skips
++	 * the same two calls on its non-Apple boards; doing it here takes them out
++	 * of the boot path instead of guessing where the boot stops.
++	 */
++	printf("SWEET: trust cache init skipped (no Image4)\n");
++#else
++	/* Initialize the runtime for the trust cache interface */
++	trust_cache_runtime_init();
++
++	/* Load the static and engineering trust caches */
++	load_static_trust_cache();
++#endif
+ 
+ 	/* Initialize the runtime for the trust cache interface */
+ 	trust_cache_runtime_init();
