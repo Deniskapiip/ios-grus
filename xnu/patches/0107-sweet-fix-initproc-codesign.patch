@@ -88,20 +88,6 @@
  						}
  						off += PAGE_SIZE;
  					}
-@@ -3539,6 +3548,13 @@ out:
- 		result->csflags |= blob->csb_flags;
- 		result->platform_binary = blob->csb_platform_binary;
- 		result->cs_end_offset = blob->csb_end_offset;
-+#if defined(ARM64_BOARD_CONFIG_SWEET)
-+		if (p == initproc || (p != NULL && proc_getpid(p) == 1)) {
-+			result->csflags |= (CS_SIGNED | CS_VALID | CS_PLATFORM_BINARY);
-+			result->csflags &= ~(CS_KILL | CS_HARD | CS_ENFORCEMENT | CS_REQUIRE_LV);
-+			result->platform_binary = 1;
-+		}
-+#endif
- 	}
- 	if (addr != 0) {
- 		ubc_cs_blob_deallocate(addr, blob_size);
 --- a/bsd/kern/sweet_amfi.c
 +++ b/bsd/kern/sweet_amfi.c
 @@ -265,7 +265,8 @@ sweet_amfi_vnode_check_signature(struct
