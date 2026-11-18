@@ -1,8 +1,8 @@
 diff --git a/osfmk/kern/startup.c b/osfmk/kern/startup.c
-index 0941e5d..c7729cf 100755
+index 0941e5d..1a226e6 100755
 --- a/osfmk/kern/startup.c
 +++ b/osfmk/kern/startup.c
-@@ -343,6 +343,40 @@ kernel_startup_tunable_dt_init(const struct startup_tunable_dt_spec *spec)
+@@ -343,6 +343,47 @@ kernel_startup_tunable_dt_init(const struct startup_tunable_dt_spec *spec)
  	}
  }
  
@@ -14,6 +14,13 @@ index 0941e5d..c7729cf 100755
 + * when the console stops printing.
 + */
 +extern vm_offset_t ml_io_map(vm_offset_t paddr, vm_size_t size);
++
++static int
++sweet_entry_seq(void)
++{
++	static int n;
++	return n < 20 ? n++ : 19;
++}
 +
 +static void
 +sweet_entry_beacon(int idx, uint32_t color)
@@ -43,7 +50,7 @@ index 0941e5d..c7729cf 100755
  static void
  kernel_startup_log(startup_subsystem_id_t subsystem)
  {
-@@ -407,6 +441,7 @@ kernel_startup_initialize_upto(startup_subsystem_id_t upto)
+@@ -407,6 +448,7 @@ kernel_startup_initialize_upto(startup_subsystem_id_t upto)
  			kprintf("%s[%d, rank %d]: %p(%p)\n", __func__,
  			    cur->subsystem, cur->rank, cur->func, cur->arg);
  		}
