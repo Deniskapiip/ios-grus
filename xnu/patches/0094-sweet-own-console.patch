@@ -1,8 +1,8 @@
 diff --git a/osfmk/console/serial_console.c b/osfmk/console/serial_console.c
-index c86b9e7..ad17cc8 100755
+index c86b9e7..8e246e3 100755
 --- a/osfmk/console/serial_console.c
 +++ b/osfmk/console/serial_console.c
-@@ -242,9 +242,132 @@ get_cons_ops_index(void)
+@@ -242,9 +242,131 @@ get_cons_ops_index(void)
   * @param poll Whether or not this call should poll instead of going to sleep
   *             waiting for an interrupt when the hardware device isn't ready
   */
@@ -48,7 +48,6 @@ index c86b9e7..ad17cc8 100755
 +	sweet_con_row = 0;
 +}
 +
-+extern void *kernel_map;
 +
 +static void
 +sweet_con_init(void)
@@ -108,7 +107,7 @@ index c86b9e7..ad17cc8 100755
 +				for (unsigned int sy = 0; sy < SWEET_CON_SCALE; sy++) {
 +					for (unsigned int sx = 0; sx < SWEET_CON_SCALE; sx++) {
 +						sweet_con_fb[(y0 + gy * SWEET_CON_SCALE + sy) * SWEET_CON_W
-+						    + x0 + gx * SWEET_CON_SCALE + sx] = px;
++						    + (SWEET_CON_W - 1 - (x0 + gx * SWEET_CON_SCALE + sx))] = px;
 +					}
 +				}
 +			}
