@@ -1,8 +1,8 @@
 diff --git a/osfmk/kern/startup.c b/osfmk/kern/startup.c
-index 162360c..af7082d 100755
+index 162360c..883b86f 100755
 --- a/osfmk/kern/startup.c
 +++ b/osfmk/kern/startup.c
-@@ -385,6 +385,38 @@ static inline int sweet_entry_seq(void) { return 0; }
+@@ -385,6 +385,39 @@ static inline int sweet_entry_seq(void) { return 0; }
  static inline void sweet_entry_beacon(int idx, uint32_t color) { (void)idx; (void)color; }
  #endif
  
@@ -27,9 +27,10 @@ index 162360c..af7082d 100755
 +	if (fb == 0) {
 +		return;
 +	}
++	(void)slot;
 +	for (int y = 0; y < 60; y++) {
 +		for (int x = 0; x < 60; x++) {
-+			fb[(1200 + y) * 1080 + slot * 70 + x] = color;
++			fb[(2220 + y) * 1080 + 990 + x] = color;
 +		}
 +	}
 +	__asm__ volatile("dsb sy" ::: "memory");
@@ -41,7 +42,7 @@ index 162360c..af7082d 100755
  static void
  kernel_startup_log(startup_subsystem_id_t subsystem)
  {
-@@ -738,6 +770,9 @@ kernel_bootstrap_thread(void)
+@@ -738,6 +771,9 @@ kernel_bootstrap_thread(void)
  #ifdef  IOKIT
  	kernel_bootstrap_log("PE_init_iokit");
  	PE_init_iokit();
@@ -51,7 +52,7 @@ index 162360c..af7082d 100755
  #endif
  
  	assert(ml_get_interrupts_enabled() == FALSE);
-@@ -747,6 +782,9 @@ kernel_bootstrap_thread(void)
+@@ -747,6 +783,9 @@ kernel_bootstrap_thread(void)
  	 * interrupts or preemption enabled may begin enforcement.
  	 */
  	kernel_startup_initialize_upto(STARTUP_SUB_EARLY_BOOT);
@@ -61,7 +62,7 @@ index 162360c..af7082d 100755
  
  #if SCHED_HYGIENE_DEBUG
  	// Reset interrupts masked timeout before we enable interrupts
-@@ -756,6 +794,9 @@ kernel_bootstrap_thread(void)
+@@ -756,6 +795,9 @@ kernel_bootstrap_thread(void)
  		kprintf("SWEETSTEP spllo before\n");
  	}
  	(void) spllo();         /* Allow interruptions */
@@ -71,7 +72,7 @@ index 162360c..af7082d 100755
  	if (startup_phase >= STARTUP_SUB_KPRINTF) {
  		kprintf("SWEETSTEP spllo after\n");
  	}
-@@ -767,6 +808,9 @@ kernel_bootstrap_thread(void)
+@@ -767,6 +809,9 @@ kernel_bootstrap_thread(void)
  		kprintf("SWEETSTEP initialize_screen before\n");
  	}
  	initialize_screen(NULL, kPEAcquireScreen);
@@ -81,7 +82,7 @@ index 162360c..af7082d 100755
  	if (startup_phase >= STARTUP_SUB_KPRINTF) {
  		kprintf("SWEETSTEP initialize_screen after\n");
  	}
-@@ -778,6 +822,9 @@ kernel_bootstrap_thread(void)
+@@ -778,6 +823,9 @@ kernel_bootstrap_thread(void)
  		kprintf("SWEETSTEP vm_commpage_init before\n");
  	}
  	vm_commpage_init();
@@ -91,7 +92,7 @@ index 162360c..af7082d 100755
  	if (startup_phase >= STARTUP_SUB_KPRINTF) {
  		kprintf("SWEETSTEP vm_commpage_init after\n");
  	}
-@@ -792,6 +839,9 @@ kernel_bootstrap_thread(void)
+@@ -792,6 +840,9 @@ kernel_bootstrap_thread(void)
  #if CONFIG_MACF
  	kernel_bootstrap_log("mac_policy_initmach");
  	mac_policy_initmach();
@@ -101,7 +102,7 @@ index 162360c..af7082d 100755
  #if CONFIG_VNGUARD
  	kernel_bootstrap_log("vnguard_policy_init");
  	vnguard_policy_init();
-@@ -814,12 +864,18 @@ kernel_bootstrap_thread(void)
+@@ -814,12 +865,18 @@ kernel_bootstrap_thread(void)
  
  	/* Initialize the runtime for the trust cache interface */
  	trust_cache_runtime_init();
@@ -120,7 +121,7 @@ index 162360c..af7082d 100755
  
  	/*
  	 * Get rid of segments used to bootstrap kext loading. This removes
-@@ -833,6 +889,9 @@ kernel_bootstrap_thread(void)
+@@ -833,6 +890,9 @@ kernel_bootstrap_thread(void)
  	/* No changes to kernel text and rodata beyond this point. */
  	kernel_bootstrap_log("machine_lockdown");
  	machine_lockdown();
@@ -130,7 +131,7 @@ index 162360c..af7082d 100755
  
  #ifdef CONFIG_XNUPOST
  	kern_return_t result = kernel_list_tests();
-@@ -845,6 +904,9 @@ kernel_bootstrap_thread(void)
+@@ -845,6 +905,9 @@ kernel_bootstrap_thread(void)
  
  #ifdef  IOKIT
  	kernel_bootstrap_log("PE_lockdown_iokit");
@@ -140,7 +141,7 @@ index 162360c..af7082d 100755
  	PE_lockdown_iokit();
  #endif
  	/*
-@@ -863,6 +925,9 @@ kernel_bootstrap_thread(void)
+@@ -863,6 +926,9 @@ kernel_bootstrap_thread(void)
  	 */
  #ifdef  MACH_BSD
  	bsd_init();
