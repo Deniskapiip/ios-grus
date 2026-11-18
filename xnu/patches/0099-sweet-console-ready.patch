@@ -1,0 +1,12 @@
+diff --git a/iokit/Kernel/arm/SweetPlatformExpert.cpp b/iokit/Kernel/arm/SweetPlatformExpert.cpp
+index 0631685..cc0d770 100755
+--- a/iokit/Kernel/arm/SweetPlatformExpert.cpp
++++ b/iokit/Kernel/arm/SweetPlatformExpert.cpp
+@@ -25,6 +25,7 @@ OSDefineMetaClassAndStructors(SweetPlatformExpert, IODTPlatformExpert);
+ bool
+ SweetPlatformExpert::start(IOService *provider)
+ {
++	{ extern int sweet_con_ready; sweet_con_ready = 1; }
+ 	IOLog("SWEET: starting device-tree platform expert\n");
+ 	if (!IODTPlatformExpert::start(provider)) {
+ 		return false;

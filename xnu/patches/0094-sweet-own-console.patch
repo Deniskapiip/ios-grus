@@ -1,8 +1,8 @@
 diff --git a/osfmk/console/serial_console.c b/osfmk/console/serial_console.c
-index c86b9e7..8e246e3 100755
+index c86b9e7..18a193c 100755
 --- a/osfmk/console/serial_console.c
 +++ b/osfmk/console/serial_console.c
-@@ -242,9 +242,131 @@ get_cons_ops_index(void)
+@@ -242,9 +242,132 @@ get_cons_ops_index(void)
   * @param poll Whether or not this call should poll instead of going to sleep
   *             waiting for an interrupt when the hardware device isn't ready
   */
@@ -32,6 +32,7 @@ index c86b9e7..8e246e3 100755
 +
 +static volatile uint32_t *sweet_con_fb;
 +static unsigned int sweet_con_col, sweet_con_row;
++int sweet_con_ready;
 +static int sweet_con_state = -1;
 +static volatile int sweet_con_busy;
 +
@@ -54,8 +55,8 @@ index c86b9e7..8e246e3 100755
 +{
 +	uint32_t on = 0;
 +	sweet_con_state = 0;
-+	/* pmap and the kernel map must exist before anything can be mapped. */
-+	if (kernel_map == 0) {
++	/* Only after the platform expert is up is it safe to map the framebuffer. */
++	if (!sweet_con_ready) {
 +		return;
 +	}
 +	if (!PE_parse_boot_argn("sweetcon", &on, sizeof(on)) || !on) {
