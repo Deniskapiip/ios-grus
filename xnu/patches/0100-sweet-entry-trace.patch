@@ -1,0 +1,14 @@
+diff --git a/osfmk/kern/startup.c b/osfmk/kern/startup.c
+index c58a820..a352419 100755
+--- a/osfmk/kern/startup.c
++++ b/osfmk/kern/startup.c
+@@ -452,7 +452,9 @@ kernel_startup_initialize_upto(startup_subsystem_id_t upto)
+ 		sweet_entry_beacon(sweet_entry_seq(), 0xff00ffffu);
+ 		startup_phase = cur->subsystem - 1;
+ 		kernel_startup_log(cur->subsystem);
++		kprintf("SWEETENTRY enter %p sub %d rank %d\n", cur->func, cur->subsystem, cur->rank);
+ 		cur->func(cur->arg);
++		kprintf("SWEETENTRY done %p\n", cur->func);
+ 		startup_entry_cur = ++cur;
+ 	}
+ 	kernel_startup_log(upto);
