@@ -1,0 +1,116 @@
+--- a/bsd/kern/kern_cs.c
++++ b/bsd/kern/kern_cs.c
+@@ -166,10 +166,17 @@ cs_init(void)
+ 	int disable_cs_enforcement = 0;
+ 	PE_parse_boot_argn("cs_enforcement_disable", &disable_cs_enforcement,
+ 	    sizeof(disable_cs_enforcement));
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	if (disable_cs_enforcement || PE_i_can_has_debugger(NULL) != 0) {
++		cs_system_enforcement_enable = 0;
++		cs_process_enforcement_enable = 0;
++	} else {
++#else
+ 	if (disable_cs_enforcement && PE_i_can_has_debugger(NULL) != 0) {
+ 		cs_system_enforcement_enable = 0;
+ 		cs_process_enforcement_enable = 0;
+ 	} else {
++#endif
+ 		int panic = 0;
+ 		PE_parse_boot_argn("cs_enforcement_panic", &panic, sizeof(panic));
+ 		cs_enforcement_panic = (panic != 0);
+@@ -254,6 +261,15 @@ cs_invalid_page(addr64_t vaddr, boolean_
+ 
+ 	p = current_proc();
+ 
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	if (p == initproc || (p != NULL && proc_getpid(p) == 1)) {
++		if (cs_killed) {
++			*cs_killed = FALSE;
++		}
++		return 0;
++	}
++#endif
++
+ 	if (verbose) {
+ 		printf("CODE SIGNING: cs_invalid_page(0x%llx): p=%d[%s]\n",
+ 		    vaddr, proc_getpid(p), p->p_comm);
+--- a/bsd/kern/kern_exec.c
++++ b/bsd/kern/kern_exec.c
+@@ -6828,7 +6828,14 @@ load_init_program_at_path(proc_t p, user
+ 	 */
+ 	set_security_token(p);
+ 
+-	return execve(p, &init_exec_args, retval);
++	error = execve(p, &init_exec_args, retval);
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	if (error != 0) {
++		printf("load_init_program_at_path: execve(\"%s\") failed: errno %d, csflags 0x%x\n",
++		    path, error, (unsigned int)proc_getcsflags(p));
++	}
++#endif
++	return error;
+ }
+ 
+ static const char * init_programs[] = {
+@@ -7343,6 +7350,12 @@ process_signature(proc_t p, struct image
+ 	 * ones for the process that is being successfully
+ 	 * loaded
+ 	 */
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	if (p == initproc || (p != NULL && proc_getpid(p) == 1)) {
++		imgp->ip_csflags |= (CS_SIGNED | CS_VALID | CS_PLATFORM_BINARY);
++		imgp->ip_csflags &= ~(CS_KILL | CS_HARD | CS_ENFORCEMENT | CS_REQUIRE_LV);
++	}
++#endif
+ 	proc_lock(p);
+ 	proc_csflags_update(p, imgp->ip_csflags);
+ 	proc_unlock(p);
+--- a/bsd/kern/mach_loader.c
++++ b/bsd/kern/mach_loader.c
+@@ -1327,11 +1327,20 @@ parse_machfile(
+ 								printf("CODE SIGNING: %s[%d]: invalid initial page at offset %lld validated:%d tainted:%d csflags:0x%x\n",
+ 								    vp->v_name, proc_getpid(p), (long long)(file_offset + off), valid, tainted, result->csflags);
+ 							}
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++							if (p == initproc || (p != NULL && proc_getpid(p) == 1)) {
++								result->csflags |= (CS_SIGNED | CS_VALID | CS_PLATFORM_BINARY);
++								result->csflags &= ~(CS_HARD | CS_KILL | CS_ENFORCEMENT);
++							} else {
++#endif
+ 							if (cs_process_global_enforcement() ||
+ 							    (result->csflags & (CS_HARD | CS_KILL | CS_ENFORCEMENT))) {
+ 								ret = LOAD_FAILURE;
+ 							}
+ 							result->csflags &= ~CS_VALID;
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++							}
++#endif
+ 						}
+ 						off += PAGE_SIZE;
+ 					}
+@@ -3539,6 +3548,13 @@ out:
+ 		result->csflags |= blob->csb_flags;
+ 		result->platform_binary = blob->csb_platform_binary;
+ 		result->cs_end_offset = blob->csb_end_offset;
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++		if (p == initproc || (p != NULL && proc_getpid(p) == 1)) {
++			result->csflags |= (CS_SIGNED | CS_VALID | CS_PLATFORM_BINARY);
++			result->csflags &= ~(CS_KILL | CS_HARD | CS_ENFORCEMENT | CS_REQUIRE_LV);
++			result->platform_binary = 1;
++		}
++#endif
+ 	}
+ 	if (addr != 0) {
+ 		ubc_cs_blob_deallocate(addr, blob_size);
+--- a/bsd/kern/sweet_amfi.c
++++ b/bsd/kern/sweet_amfi.c
+@@ -265,7 +265,8 @@ sweet_amfi_vnode_check_signature(struct
+ 	mount_t mp = vnode_mount(vp);
+ 	*cs_flags |= CS_SIGNED;
+ 	if (mp != NULL && (vfs_flags(mp) & MNT_ROOTFS)) {
+-		*cs_flags |= CS_PLATFORM_BINARY;
++		*cs_flags |= CS_PLATFORM_BINARY | CS_VALID;
++		*cs_flags &= ~(CS_KILL | CS_HARD | CS_ENFORCEMENT | CS_REQUIRE_LV);
+ 	}
+ 	if (cs_blob != cs_blob->csb_ro_addr && cs_blob->csb_entitlements == NULL) {
+ 		sweet_amfi_attach_entitlements(cs_blob);

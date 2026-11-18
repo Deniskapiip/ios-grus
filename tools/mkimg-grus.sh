@@ -15,7 +15,7 @@ KERNEL=${1:?usage: mkimg-grus.sh KERNEL ADT OUTDIR [DTB]}
 ADT=${2:-$port/../out/grus.adt}
 OUTDIR=${3:-$port/../out}
 DTB=${4:-$port/../work/grus.dtb}
-CMDLINE=${CMDLINE:-"debug=0xc serial=3 cpus=6 keepsyms=1 -enable_kprintf_spam -noprogress rd=ufsroot0 unentitled_ios_sim_launch=1 ignition_level=1 wdt_test=no_user_checkin ufsrw=1 rootrw=1 launchd_unsecure_cache=1 wdt=-1 sweetfb_noconsole=1 sweetfb_hz=30 grus=1"}
+CMDLINE=${CMDLINE:-"debug=0xc serial=3 cpus=1 keepsyms=1 -enable_kprintf_spam -noprogress rd=ufsroot0 unentitled_ios_sim_launch=1 ignition_level=1 wdt_test=no_user_checkin ufsrw=1 rootrw=1 launchd_unsecure_cache=1 wdt=-1 sweetfb_hz=30 grus=1 sweettouch=0 sweetkeys=0 cs_enforcement_disable=1 amfi_get_out_of_my_way=1 amfi=0xff"}
 
 [ -s "$KERNEL" ] || { echo "no kernel: $KERNEL" >&2; exit 1; }
 [ -s "$ADT" ] || { echo "no ADT: $ADT (run tools/mkadt.py --board grus --highmem)" >&2; exit 1; }
