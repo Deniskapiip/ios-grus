@@ -1,0 +1,45 @@
+diff --git a/osfmk/kern/startup.c b/osfmk/kern/startup.c
+index 4a5bf5c..d4d30c8 100755
+--- a/osfmk/kern/startup.c
++++ b/osfmk/kern/startup.c
+@@ -846,18 +846,30 @@ kernel_bootstrap_thread(void)
+ #if CONFIG_VNGUARD
+ 	kernel_bootstrap_log("vnguard_policy_init");
+ 	vnguard_policy_init();
++	if (startup_phase >= STARTUP_SUB_KPRINTF) {
++		sweet_milestone(0, 0xff202020u);
++	}
+ #endif
+ #endif
+ 
+ #if CONFIG_DTRACE
+ 	kernel_bootstrap_log("dtrace_early_init");
+ 	dtrace_early_init();
++	if (startup_phase >= STARTUP_SUB_KPRINTF) {
++		sweet_milestone(0, 0xff808000u);
++	}
+ 	sdt_early_init();
++	if (startup_phase >= STARTUP_SUB_KPRINTF) {
++		sweet_milestone(0, 0xff008080u);
++	}
+ #endif
+ 
+ #if CODE_SIGNING_MONITOR
+ 	kernel_bootstrap_log("provisioning_profile_init");
+ 	csm_initialize_provisioning_profiles();
++	if (startup_phase >= STARTUP_SUB_KPRINTF) {
++		sweet_milestone(0, 0xff000080u);
++	}
+ #endif
+ 
+ #ifndef BCM2837
+@@ -871,6 +883,9 @@ kernel_bootstrap_thread(void)
+ 
+ 	/* Load the static and engineering trust caches */
+ 	load_static_trust_cache();
++	if (startup_phase >= STARTUP_SUB_KPRINTF) {
++		sweet_milestone(0, 0xff800000u);
++	}
+ #endif
+ 
+ 	kernel_startup_initialize_upto(STARTUP_SUB_LOCKDOWN);
