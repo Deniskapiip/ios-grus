@@ -63,12 +63,35 @@ jobs:
           xcodebuild -version
           xcrun --find iig
 
+      - name: ccache
+        run: |
+          brew install ccache
+          ccache --max-size=3G
+          echo "CCACHE_DIR=$HOME/.ccache" >> "$GITHUB_ENV"
+          ccache --version | head -1
+
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ env.DXB_SHA }}-${{ hashFiles('xnu/patches/**') }}
+          restore-keys: |
+            ccache-${{ env.DXB_SHA }}-
+
       - name: Build
         working-directory: dxb
         env:
           # keep going after errors so one run reports every compile failure
           MAKEFLAGS: ${{ inputs.keep_going == 'false' && '' || '-k' }}
+          # xnu's MakeInc.def already does KCC = $(CCACHE) $(CC)
+          CCACHE: ccache
+          CCACHE_BASEDIR: ${{ github.workspace }}
+          CCACHE_NOHASHDIR: "true"
         run: bash build.sh
+
+      - name: ccache stats
+        if: always()
+        run: ccache -s || true
 
       - name: Package build tree for local compiles
         if: always()
