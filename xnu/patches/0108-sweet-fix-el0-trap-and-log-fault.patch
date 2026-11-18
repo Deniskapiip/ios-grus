@@ -1,13 +1,12 @@
 --- a/osfmk/arm64/locore.s
 +++ b/osfmk/arm64/locore.s
-@@ -928,8 +928,23 @@
- 	 *                       (1)                                 (2)
- 	 */
- 
-+#if (CONFIG_KERNEL_INTEGRITY && KERNEL_INTEGRITY_WT) || defined(ARM64_BOARD_CONFIG_SWEET)
+@@ -931,6 +931,22 @@
  	mov		x0, #(CPACR_FPEN_ENABLE)
  	msr		CPACR_EL1, x0
+ #endif
 +#if defined(ARM64_BOARD_CONFIG_SWEET)
++	mov		x0, #(CPACR_FPEN_ENABLE)
++	msr		CPACR_EL1, x0
 +	mrs		x0, TCR_EL1
 +	mov		x1, #1
 +	lsl		x1, x1, #37
@@ -21,9 +20,9 @@
 +	msr		SCTLR_EL1, x0
 +	isb		sy
 +#endif
- #endif
  
  	/* Establish this thread's debug state as the live state on the selected CPU. */
+ 	ldr		x4, [x3, ACT_CPUDATAP]				// Get current CPU data pointer
 --- a/osfmk/arm64/sleh.c
 +++ b/osfmk/arm64/sleh.c
 @@ -193,6 +193,19 @@
