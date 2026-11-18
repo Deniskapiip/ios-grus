@@ -1,0 +1,51 @@
+diff --git a/osfmk/arm/rtclock.c b/osfmk/arm/rtclock.c
+index 5989b48..d8ecf64 100755
+--- a/osfmk/arm/rtclock.c
++++ b/osfmk/arm/rtclock.c
+@@ -320,8 +320,46 @@ clock_timebase_info(mach_timebase_info_t info)
+  * Real-time clock device interrupt.
+  */
+ void
++
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++/*
++ * SWEET: white square at (400, 2220) the first time the timer interrupt is
++ * taken. If it never appears while the boot stops inside bsd_init, the
++ * timer's PPI never reaches the CPU and every sleep waits forever.
++ */
++#include <console/video_console.h>
++extern struct vc_info vinfo;
++
++static void
++sweet_timer_once(void)
++{
++	static volatile uint32_t *fb;
++	static volatile int done;
++
++	if (done) {
++		return;
++	}
++	done = 1;
++	if (fb == 0 && vinfo.v_baseaddr != 0) {
++		fb = (volatile uint32_t *)vinfo.v_baseaddr;
++	}
++	if (fb == 0) {
++		return;
++	}
++	for (int y = 0; y < 60; y++) {
++		for (int x = 0; x < 60; x++) {
++			fb[(2220 + y) * 1080 + 400 + x] = 0xffffffffu;
++		}
++	}
++	__asm__ volatile("dsb sy" ::: "memory");
++}
++#else
++static inline void sweet_timer_once(void) { }
++#endif
++
+ rtclock_intr(__unused unsigned int is_user_context)
+ {
++	sweet_timer_once();
+ 	uint64_t                 abstime;
+ 	cpu_data_t *             cdp;
+ 	struct arm_saved_state * regs;

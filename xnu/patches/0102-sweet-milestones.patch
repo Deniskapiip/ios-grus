@@ -1,5 +1,5 @@
 diff --git a/osfmk/kern/startup.c b/osfmk/kern/startup.c
-index 162360c..cee261f 100755
+index 162360c..4a5bf5c 100755
 --- a/osfmk/kern/startup.c
 +++ b/osfmk/kern/startup.c
 @@ -385,6 +385,39 @@ static inline int sweet_entry_seq(void) { return 0; }
@@ -141,13 +141,13 @@ index 162360c..cee261f 100755
  	PE_lockdown_iokit();
  #endif
  	/*
-@@ -863,6 +926,9 @@ kernel_bootstrap_thread(void)
+@@ -862,6 +925,9 @@ kernel_bootstrap_thread(void)
+ 	 *	Start the user bootstrap.
  	 */
  #ifdef  MACH_BSD
- 	bsd_init();
 +	if (startup_phase >= STARTUP_SUB_KPRINTF) {
 +		sweet_milestone(10, 0xff00ff80u);
 +	}
+ 	bsd_init();
  #endif
- 
  
