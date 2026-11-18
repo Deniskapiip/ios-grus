@@ -1,11 +1,11 @@
 diff --git a/osfmk/arm/rtclock.c b/osfmk/arm/rtclock.c
-index 5989b48..d8ecf64 100755
+index 5989b48..68401cb 100755
 --- a/osfmk/arm/rtclock.c
 +++ b/osfmk/arm/rtclock.c
-@@ -320,8 +320,46 @@ clock_timebase_info(mach_timebase_info_t info)
+@@ -319,9 +319,47 @@ clock_timebase_info(mach_timebase_info_t info)
+ /*
   * Real-time clock device interrupt.
   */
- void
 +
 +#if defined(ARM64_BOARD_CONFIG_SWEET)
 +/*
@@ -43,6 +43,7 @@ index 5989b48..d8ecf64 100755
 +static inline void sweet_timer_once(void) { }
 +#endif
 +
+ void
  rtclock_intr(__unused unsigned int is_user_context)
  {
 +	sweet_timer_once();
