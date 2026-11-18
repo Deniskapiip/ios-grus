@@ -1,8 +1,8 @@
 diff --git a/osfmk/console/serial_console.c b/osfmk/console/serial_console.c
-index c86b9e7..18a193c 100755
+index c86b9e7..8bb74ef 100755
 --- a/osfmk/console/serial_console.c
 +++ b/osfmk/console/serial_console.c
-@@ -242,9 +242,132 @@ get_cons_ops_index(void)
+@@ -242,9 +242,134 @@ get_cons_ops_index(void)
   * @param poll Whether or not this call should poll instead of going to sleep
   *             waiting for an interrupt when the hardware device isn't ready
   */
@@ -18,7 +18,9 @@ index c86b9e7..18a193c 100755
 + * into the boot framebuffer.
 + */
 +extern unsigned char iso_font[];
-+extern vm_offset_t ml_io_map(vm_offset_t paddr, vm_size_t size);
++#include "video_console.h"
++/* The video console already mapped the framebuffer: reuse its address. */
++extern struct vc_info vinfo;
 +
 +#define SWEET_CON_FB_PA     0x9c000000ULL
 +#define SWEET_CON_FB_SIZE   (0x2300000ULL)
@@ -62,11 +64,11 @@ index c86b9e7..18a193c 100755
 +	if (!PE_parse_boot_argn("sweetcon", &on, sizeof(on)) || !on) {
 +		return;
 +	}
-+	sweet_con_fb = (volatile uint32_t *)ml_io_map((vm_offset_t)SWEET_CON_FB_PA,
-+	    (vm_size_t)SWEET_CON_FB_SIZE);
-+	if (sweet_con_fb == 0) {
++	if (vinfo.v_baseaddr == 0 || vinfo.v_width < SWEET_CON_W ||
++	    vinfo.v_height < SWEET_CON_H) {
 +		return;
 +	}
++	sweet_con_fb = (volatile uint32_t *)vinfo.v_baseaddr;
 +	sweet_con_state = 1;
 +	sweet_con_clear();
 +}
