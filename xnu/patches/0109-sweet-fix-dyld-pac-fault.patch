@@ -1,0 +1,77 @@
+--- a/osfmk/arm64/sleh.c
++++ b/osfmk/arm64/sleh.c
+@@ -718,6 +718,35 @@
+ 		thread_reset_pcs_will_fault(thread);
+ 	}
+ 
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	if (is_user && class == ESR_EC_DABORT_EL0) {
++		if ((far & 0xffff800000000000ULL) != 0) {
++			uint64_t far_orig = (uint64_t)far;
++			uint64_t pc = (uint64_t)get_saved_state_pc(state);
++			uint32_t instr = 0;
++			if (copyin((user_addr_t)pc, &instr, sizeof(instr)) == 0) {
++				unsigned int rn = (instr >> 5) & 0x1f;
++				if (rn < 31) {
++					uint64_t val = (uint64_t)get_saved_state_reg(state, rn);
++					if ((val & 0xffff800000000000ULL) != 0) {
++						set_saved_state_reg(state, rn, val & 0x00007fffffffffffULL);
++					}
++				}
++			}
++			for (int reg_idx = 0; reg_idx < 31; reg_idx++) {
++				uint64_t val = (uint64_t)get_saved_state_reg(state, reg_idx);
++				if ((val & 0xffff800000000000ULL) != 0) {
++					uint64_t diff = (val > far_orig) ? (val - far_orig) : (far_orig - val);
++					if (diff < 0x10000) {
++						set_saved_state_reg(state, reg_idx, val & 0x00007fffffffffffULL);
++					}
++				}
++			}
++			far = (vm_offset_t)(far_orig & 0x00007fffffffffffULL);
++		}
++	}
++#endif
++
+ 	/* Inherit the interrupt masks from previous context */
+ 	if (SPSR_INTERRUPTS_ENABLED(get_saved_state_cpsr(state))) {
+ 		ml_set_interrupts_enabled(TRUE);
+@@ -1414,7 +1443,11 @@
+ 		assert(map != kernel_map);
+ 
+ 		if (!(fault_type & VM_PROT_EXECUTE)) {
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++			vm_fault_addr = (fault_addr & 0x00007fffffffffffULL);
++#else
+ 			vm_fault_addr = tbi_clear(fault_addr);
++#endif
+ 		}
+ 
+ 		/* check to see if it is just a pmap ref/modify fault */
+--- a/bsd/vm/vm_unix.c
++++ b/bsd/vm/vm_unix.c
+@@ -2150,6 +2150,9 @@
+ 
+ 				/* ... and give it to the caller */
+ 				if (error == 0) {
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++					start_address &= 0x00007fffffffffffULL;
++#endif
+ 					error = copyout(&start_address,
+ 					    (user_addr_t) uap->start_address,
+ 					    sizeof(start_address));
+@@ -2989,8 +2992,14 @@
+ 				goto done;
+ 			}
+ 			mappings[m].sms_address += slide_amount;
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++			mappings[m].sms_address &= 0x00007fffffffffffULL;
++#endif
+ 			if (mappings[m].sms_slide_size != 0) {
+ 				mappings[m].sms_slide_start += slide_amount;
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++				mappings[m].sms_slide_start &= 0x00007fffffffffffULL;
++#endif
+ 			}
+ 		}
+ 	}
