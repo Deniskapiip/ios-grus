@@ -1,11 +1,12 @@
 diff --git a/osfmk/console/serial_console.c b/osfmk/console/serial_console.c
-index c86b9e7..8bb74ef 100755
+index e5b23f2..0f07f8f 100644
 --- a/osfmk/console/serial_console.c
 +++ b/osfmk/console/serial_console.c
-@@ -242,9 +242,351 @@ get_cons_ops_index(void)
+@@ -242,9 +242,358 @@ get_cons_ops_index(void)
   * @param poll Whether or not this call should poll instead of going to sleep
   *             waiting for an interrupt when the hardware device isn't ready
   */
++
 +#if defined(ARM64_BOARD_CONFIG_SWEET)
 +/*
 + * SWEET: a write-only framebuffer console, enabled with sweetcon=1.
@@ -230,11 +231,13 @@ index c86b9e7..8bb74ef 100755
 +    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 +};
 +
++
 +static volatile uint32_t *sweet_con_fb;
 +static unsigned int sweet_con_col, sweet_con_row;
 +int sweet_con_ready;
 +static int sweet_con_state = -1;
 +static volatile int sweet_con_busy;
++
 +
 +static void
 +sweet_con_draw_apple_logo(void)
@@ -258,7 +261,6 @@ index c86b9e7..8bb74ef 100755
 +	}
 +	__asm__ volatile("dsb sy" ::: "memory");
 +}
-+
 +static void
 +sweet_con_clear(void)
 +{
@@ -309,10 +311,9 @@ index c86b9e7..8bb74ef 100755
 +	}
 +	sweet_con_busy = 1;
 +
-+	if (c == '') {
++	if (c == '\r') {
 +		sweet_con_col = 0;
-+	} else if (c == '
-+') {
++	} else if (c == '\n') {
 +		sweet_con_col = 0;
 +		sweet_con_row++;
 +	} else if (c >= 0x20 && c < 0x7f) {
@@ -348,6 +349,7 @@ index c86b9e7..8bb74ef 100755
 +	return 1;
 +}
 +#endif /* ARM64_BOARD_CONFIG_SWEET */
++
  static inline void
  _cnputc(char c, bool poll)
  {
@@ -358,3 +360,4 @@ index c86b9e7..8bb74ef 100755
 +#endif
  	bool in_debugger = (kernel_debugger_entry_count > 0);
  	const uint32_t idx = get_cons_ops_index();
+ 
