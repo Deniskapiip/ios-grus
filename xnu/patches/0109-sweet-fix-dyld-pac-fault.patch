@@ -1,5 +1,5 @@
 diff --git a/bsd/vm/vm_unix.c b/bsd/vm/vm_unix.c
-index 41982bc..7ecb136 100644
+index 41982bc..08841ce 100644
 --- a/bsd/vm/vm_unix.c
 +++ b/bsd/vm/vm_unix.c
 @@ -2135,6 +2135,9 @@ shared_region_check_np(
@@ -7,7 +7,7 @@ index 41982bc..7ecb136 100644
  				/* ... and give it to the caller */
  				if (error == 0) {
 +#if defined(ARM64_BOARD_CONFIG_SWEET)
-+					start_address &= 0x00007fffffffffffULL;
++					start_address &= 0x0000000fffffffffULL;
 +#endif
  					error = copyout(&start_address,
  					    (user_addr_t) uap->start_address,
@@ -17,54 +17,53 @@ index 41982bc..7ecb136 100644
  			}
  			mappings[m].sms_address += slide_amount;
 +#if defined(ARM64_BOARD_CONFIG_SWEET)
-+			mappings[m].sms_address &= 0x00007fffffffffffULL;
++			mappings[m].sms_address &= 0x0000000fffffffffULL;
 +#endif
  			if (mappings[m].sms_slide_size != 0) {
  				mappings[m].sms_slide_start += slide_amount;
 +#if defined(ARM64_BOARD_CONFIG_SWEET)
-+				mappings[m].sms_slide_start &= 0x00007fffffffffffULL;
++				mappings[m].sms_slide_start &= 0x0000000fffffffffULL;
 +#endif
  			}
  		}
  	}
 diff --git a/osfmk/arm64/sleh.c b/osfmk/arm64/sleh.c
-index bf796d6..34626ca 100644
+index bf796d6..0845eef 100644
 --- a/osfmk/arm64/sleh.c
 +++ b/osfmk/arm64/sleh.c
-@@ -731,6 +731,26 @@ sleh_synchronous(arm_context_t *context, uint32_t esr, vm_offset_t far)
+@@ -731,6 +731,25 @@ sleh_synchronous(arm_context_t *context, uint32_t esr, vm_offset_t far)
  		break;
  
  	case ESR_EC_DABORT_EL0:
 +#if defined(ARM64_BOARD_CONFIG_SWEET)
-+		if ((far & 0xffff800000000000ULL) != 0) {
-+			bool fixed = false;
-+			for (int i = 0; i < 31; i++) {
-+				uint64_t reg = (uint64_t)get_saved_state_reg(state, i);
-+				if ((reg & 0xffff800000000000ULL) != 0) {
-+					set_saved_state_reg(state, i, reg & 0x00007fffffffffffULL);
-+					fixed = true;
++		if ((far & 0xffff800000000000ULL) != 0 || far >= 0x0000008000000000ULL) {
++			extern int copyin(const user_addr_t, void *, vm_size_t);
++			uint64_t pc = (uint64_t)get_saved_state_pc(state);
++			uint32_t instr = 0;
++			if (copyin((user_addr_t)pc, &instr, sizeof(instr)) == 0) {
++				int rt1 = instr & 0x1f;
++				int rt2 = (instr >> 10) & 0x1f;
++				if (rt1 < 31) {
++					set_saved_state_reg(state, rt1, 0);
++				}
++				if (rt2 < 31 && ((instr >> 25) & 0x7f) == 0x14) {
++					set_saved_state_reg(state, rt2, 0);
 +				}
 +			}
-+			uint64_t sp = (uint64_t)get_saved_state_sp(state);
-+			if ((sp & 0xffff800000000000ULL) != 0) {
-+				set_saved_state_sp(state, sp & 0x00007fffffffffffULL);
-+				fixed = true;
-+			}
-+			if (fixed) {
-+				thread_exception_return();
-+			}
++			set_saved_state_pc(state, pc + 4);
++			thread_exception_return();
 +		}
 +#endif
  		handle_abort(state, esr, far, inspect_data_abort, handle_user_abort, expected_fault_handler);
  		break;
  
-@@ -752,6 +772,12 @@ sleh_synchronous(arm_context_t *context, uint32_t esr, vm_offset_t far)
+@@ -752,6 +771,12 @@ sleh_synchronous(arm_context_t *context, uint32_t esr, vm_offset_t far)
  #endif /* __has_feature(ptrauth_calls) */
  
  	case ESR_EC_IABORT_EL0:
 +#if defined(ARM64_BOARD_CONFIG_SWEET)
-+		if ((far & 0xffff800000000000ULL) != 0) {
-+			set_saved_state_pc(state, far & 0x00007fffffffffffULL);
++		if ((far & 0xffff800000000000ULL) != 0 || far >= 0x0000008000000000ULL) {
++			set_saved_state_pc(state, far & 0x0000000fffffffffULL);
 +			thread_exception_return();
 +		}
 +#endif
