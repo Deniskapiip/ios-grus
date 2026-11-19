@@ -1,51 +1,26 @@
 --- a/osfmk/arm64/sleh.c
 +++ b/osfmk/arm64/sleh.c
-@@ -733,6 +733,48 @@
+@@ -733,6 +733,23 @@
  		break;
  
  	case ESR_EC_DABORT_EL0:
 +#if defined(ARM64_BOARD_CONFIG_SWEET)
 +		if ((far & 0xffff800000000000ULL) != 0 || far >= 0x00007ffffffff000ULL) {
 +			uint64_t pc = (uint64_t)get_saved_state_pc(state);
-+			uint32_t instr = 0;
-+			if (copyin((user_addr_t)pc, &instr, sizeof(instr)) == 0) {
-+				unsigned int rn = (instr >> 5) & 0x1f;
-+				if (rn < 31) {
-+					uint64_t rn_val = (uint64_t)get_saved_state_reg(state, rn);
-+					uint64_t rn_clean = rn_val & 0x00007fffffffffffULL;
-+					if (rn_clean != rn_val) {
-+						set_saved_state_reg(state, rn, rn_clean);
-+						thread_exception_return();
-+					}
++			for (int i = 0; i < 31; i++) {
++				uint64_t reg = (uint64_t)get_saved_state_reg(state, i);
++				if ((reg & 0xffff800000000000ULL) != 0 || reg >= 0x00007ffffffff000ULL) {
++					set_saved_state_reg(state, i, 0);
 +				}
-+				unsigned int rm = (instr >> 16) & 0x1f;
-+				if (rm < 31) {
-+					uint64_t rm_val = (uint64_t)get_saved_state_reg(state, rm);
-+					uint64_t rm_clean = rm_val & 0x00007fffffffffffULL;
-+					if (rm_clean != rm_val) {
-+						set_saved_state_reg(state, rm, rm_clean);
-+						thread_exception_return();
-+					}
-+				}
-+				unsigned int rt = instr & 0x1f;
-+				if (rt < 31) {
-+					set_saved_state_reg(state, rt, 0);
-+				}
-+				if ((instr & 0x3a000000) == 0x28000000) {
-+					unsigned int rt2 = (instr >> 10) & 0x1f;
-+					if (rt2 < 31) {
-+						set_saved_state_reg(state, rt2, 0);
-+					}
-+				}
-+				set_saved_state_pc(state, pc + 4);
-+				thread_exception_return();
 +			}
++			set_saved_state_pc(state, pc + 4);
++			thread_exception_return();
 +		}
 +#endif
  		handle_abort(state, esr, far, inspect_data_abort, handle_user_abort, expected_fault_handler);
  		break;
  
-@@ -754,6 +796,14 @@
+@@ -754,6 +771,14 @@
  	case ESR_EC_IABORT_EL0:
 +#if defined(ARM64_BOARD_CONFIG_SWEET)
 +		if ((far & 0xffff800000000000ULL) != 0 || far >= 0x00007ffffffff000ULL) {
@@ -58,29 +33,28 @@
  
 --- a/bsd/vm/vm_unix.c
 +++ b/bsd/vm/vm_unix.c
-@@ -2100,6 +2100,12 @@
- 		proc_getpid(p), p->p_comm,
- 		(uint64_t)uap->start_address));
+@@ -2150,6 +2150,9 @@
  
+ 				/* ... and give it to the caller */
+ 				if (error == 0) {
 +#if defined(ARM64_BOARD_CONFIG_SWEET)
-+	if (proc_getpid(p) == 1) {
-+		return EINVAL;
-+	}
++					start_address &= 0x00007fffffffffffULL;
 +#endif
-+
- 	/*
- 	 * Special value of start_address used to indicate that map_with_linking() should
- 	 * no longer be allowed in this process
-@@ -2892,6 +2898,12 @@
- 
- 	files_count = uap->files_count;
- 	mappings_count = uap->mappings_count;
-+
+ 					error = copyout(&start_address,
+ 					    (user_addr_t) uap->start_address,
+ 					    sizeof(start_address));
+@@ -2989,8 +2992,14 @@
+ 				goto done;
+ 			}
+ 			mappings[m].sms_address += slide_amount;
 +#if defined(ARM64_BOARD_CONFIG_SWEET)
-+	if (proc_getpid(p) == 1) {
-+		return ENOTSUP;
-+	}
++			mappings[m].sms_address &= 0x00007fffffffffffULL;
 +#endif
- 
- 	if (files_count == 0) {
- 		SHARED_REGION_TRACE_INFO(
+ 			if (mappings[m].sms_slide_size != 0) {
+ 				mappings[m].sms_slide_start += slide_amount;
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++				mappings[m].sms_slide_start &= 0x00007fffffffffffULL;
++#endif
+ 			}
+ 		}
+ 	}
