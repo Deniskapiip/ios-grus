@@ -1,0 +1,11 @@
+diff --git a/osfmk/kern/startup.c b/osfmk/kern/startup.c
+--- a/osfmk/kern/startup.c
++++ b/osfmk/kern/startup.c
+@@ -457,6 +457,7 @@ kernel_startup_initialize_upto(startup_subsystem_id_t upto)
+ 		if (startup_phase >= STARTUP_SUB_KPRINTF) {
+ 			kprintf("SWEETENTRY done %p\n", cur->func);
+ 		}
++		sweet_entry_beacon(sweet_entry_seq(), 0xff00ff00u);
+ 		startup_entry_cur = ++cur;
+ 	}
+ 	kernel_startup_log(upto);
