@@ -32,6 +32,9 @@ index 997a4ab..db26bbe 100644
 +static void
 +fbcon_clear_row(uint32_t row)
 +{
++	if (row >= 28 && row <= 44) {
++		return;
++	}
 +	for (uint32_t y = row * 16 * FBCON_SCALE; y < (row + 1) * 16 * FBCON_SCALE; y++) {
 +		volatile uint32_t *line = fbcon_base + y * (fbcon_stride / 4);
 +		for (uint32_t x = 0; x < fbcon_width; x++) {
@@ -55,9 +58,6 @@ index 997a4ab..db26bbe 100644
 +	fbcon_cols = fbcon_width / (8 * FBCON_SCALE);
 +	fbcon_rows = fbcon_height / (16 * FBCON_SCALE);
 +	fbcon_col = fbcon_row = 0;
-+	for (uint32_t r = 0; r < fbcon_rows; r++) {
-+		fbcon_clear_row(r);
-+	}
 +}
 +
 +static unsigned int
