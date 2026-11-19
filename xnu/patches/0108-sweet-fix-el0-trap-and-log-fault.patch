@@ -45,7 +45,7 @@
  typedef uint32_t arm64_instr_t;
  
  extern void
-@@ -629,6 +642,29 @@
+@@ -629,6 +642,23 @@
  	}
  #endif
  	bool is_user = PSR64_IS_USER(get_saved_state_cpsr(state));
@@ -63,12 +63,6 @@
 +			initproc_last_x1 = (uint64_t)get_saved_state_reg(state, 1);
 +			MRS(initproc_last_cpacr, "CPACR_EL1");
 +			MRS(initproc_last_tcr, "TCR_EL1");
-+			printf("INITPROC_FAULT: ELR=0x%llx FAR=0x%llx ESR=0x%x (class 0x%x iss 0x%x) LR=0x%llx SP=0x%llx x0=0x%llx x1=0x%llx CPACR=0x%llx TCR=0x%llx\n",
-+			    initproc_last_elr, initproc_last_far, initproc_last_esr,
-+			    (unsigned int)class, (unsigned int)ESR_ISS(esr),
-+			    initproc_last_lr, initproc_last_sp,
-+			    initproc_last_x0, initproc_last_x1,
-+			    initproc_last_cpacr, initproc_last_tcr);
 +		}
 +	}
 +#endif
