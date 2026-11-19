@@ -69,11 +69,12 @@ index fb30cdd..17e926e 100755
  			sweet_beacon(2, 0xffffffffu);
  			break;
  		}
-@@ -1138,6 +1171,7 @@ bsdinit_task(void)
+@@ -1138,6 +1171,8 @@ bsdinit_task(void)
  
  	bsd_init_kprintf("bsd_do_post - done");
  
 +	sweet_bsd_mark(0xffffffff);
  	load_init_program(p);
++	sweet_bsd_mark(0xff00ff00);
  	lock_trace = 1;
  }

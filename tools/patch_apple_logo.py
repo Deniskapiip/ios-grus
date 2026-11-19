@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+import os
+
+with open(r'G:\ios_grus_port\ios-grus\out\apple_logo.h', 'r') as f:
+    apple_code = f.read()
+
+header = """
+#if defined(ARM64_BOARD_CONFIG_SWEET)
+/*
+ * SWEET: a write-only framebuffer console, enabled with sweetcon=1.
+ *
+ * Scrolling the stock console reads the framebuffer back, which on phone
+ * hardware mapped as device memory costs seconds per line, so the boot log
+ * looks frozen. This console never reads: when it reaches the bottom it
+ * clears the screen and starts again from the top. Text is written straight
+ * into the boot framebuffer.
+ */
+extern unsigned char iso_font[];
+#include "video_console.h"
+/* The video console already mapped the framebuffer: reuse its address. */
+extern struct vc_info vinfo;
+
+#define SWEET_CON_FB_PA     0x9c000000ULL
+#define SWEET_CON_FB_SIZE   (0x2300000ULL)
+#define SWEET_CON_W         1080u
+#define SWEET_CON_H         2340u
+#define SWEET_CON_SCALE     2u
+#define SWEET_CON_CW        (8u * SWEET_CON_SCALE)
+#define SWEET_CON_CH        (16u * SWEET_CON_SCALE)
+#define SWEET_CON_COLS      (SWEET_CON_W / SWEET_CON_CW)
+#define SWEET_CON_ROWS      44u
+
+"""
+
+footer = """
+static volatile uint32_t *sweet_con_fb;
+static unsigned int sweet_con_col, sweet_con_row;
+int sweet_con_ready;
+static int sweet_con_state = -1;
+static volatile int sweet_con_busy;
+
+static void
+sweet_con_draw_apple_logo(void)
+{
+	volatile uint32_t *fb = sweet_con_fb;
+	if (fb == 0) {
+		return;
+	}
+	unsigned int start_x = (SWEET_CON_W - APPLE_LOGO_W) / 2;
+	unsigned int start_y = 1500;
+	for (unsigned int ly = 0; ly < APPLE_LOGO_H; ly++) {
+		const unsigned char *row = &apple_logo_bitmap[ly * APPLE_LOGO_STRIDE];
+		for (unsigned int lx = 0; lx < APPLE_LOGO_W; lx++) {
+			unsigned char byte_val = row[lx / 8];
+			if (byte_val & (0x80u >> (lx % 8))) {
+				unsigned int px_x = start_x + lx;
+				unsigned int px_y = start_y + ly;
+				fb[px_y * SWEET_CON_W + (SWEET_CON_W - 1 - px_x)] = 0xffffffffu;
+			}
+		}
+	}
+	__asm__ volatile("dsb sy" ::: "memory");
+}
+
+static void
+sweet_con_clear(void)
+{
+	volatile uint32_t *fb = sweet_con_fb;
+	for (unsigned int y = 0; y < SWEET_CON_H; y++) {
+		for (unsigned int x = 0; x < SWEET_CON_W; x++) {
+			fb[y * SWEET_CON_W + x] = 0;
+		}
+	}
+	sweet_con_col = 0;
+	sweet_con_row = 0;
+	sweet_con_draw_apple_logo();
+}
+
+
+static void
+sweet_con_init(void)
+{
+	uint32_t on = 0;
+	sweet_con_state = 0;
+	/* Only after the platform expert is up is it safe to map the framebuffer. */
+	if (!sweet_con_ready) {
+		return;
+	}
+	if (!PE_parse_boot_argn("sweetcon", &on, sizeof(on)) || !on) {
+		return;
+	}
+	if (vinfo.v_baseaddr == 0 || vinfo.v_width < SWEET_CON_W ||
+	    vinfo.v_height < SWEET_CON_H) {
+		return;
+	}
+	sweet_con_fb = (volatile uint32_t *)vinfo.v_baseaddr;
+	sweet_con_state = 1;
+	sweet_con_clear();
+}
+
+static int
+sweet_con_putc(char c)
+{
+	if (sweet_con_state < 0) {
+		sweet_con_init();
+	}
+	if (sweet_con_state != 1 || sweet_con_fb == 0) {
+		return sweet_con_state == 1;
+	}
+	if (sweet_con_busy) {
+		return 1;
+	}
+	sweet_con_busy = 1;
+
+	if (c == '\r') {
+		sweet_con_col = 0;
+	} else if (c == '\n') {
+		sweet_con_col = 0;
+		sweet_con_row++;
+	} else if (c >= 0x20 && c < 0x7f) {
+		if (sweet_con_col >= SWEET_CON_COLS) {
+			sweet_con_col = 0;
+			sweet_con_row++;
+		}
+		if (sweet_con_row >= SWEET_CON_ROWS) {
+			sweet_con_clear();
+		}
+		const unsigned char *glyph = iso_font + ((unsigned char)c * 16);
+		unsigned int x0 = sweet_con_col * SWEET_CON_CW;
+		unsigned int y0 = sweet_con_row * SWEET_CON_CH;
+		for (unsigned int gy = 0; gy < 16; gy++) {
+			unsigned char bits = glyph[gy];
+			for (unsigned int gx = 0; gx < 8; gx++) {
+				uint32_t px = (bits & (0x80u >> gx)) ? 0xffffffffu : 0xff000000u;
+				for (unsigned int sy = 0; sy < SWEET_CON_SCALE; sy++) {
+					for (unsigned int sx = 0; sx < SWEET_CON_SCALE; sx++) {
+						sweet_con_fb[(y0 + gy * SWEET_CON_SCALE + sy) * SWEET_CON_W
+						    + (SWEET_CON_W - 1 - (x0 + gx * SWEET_CON_SCALE + sx))] = px;
+					}
+				}
+			}
+		}
+		sweet_con_col++;
+	}
+	if (sweet_con_row >= SWEET_CON_ROWS) {
+		sweet_con_clear();
+	}
+	__asm__ volatile("dsb sy" ::: "memory");
+	sweet_con_busy = 0;
+	return 1;
+}
+#endif /* ARM64_BOARD_CONFIG_SWEET */
+"""
+
+new_block = header + apple_code + footer
+
+# Count lines in new_block
+lines = new_block.strip("\n").split("\n")
+diff_lines = ["+" + line if line else "+" for line in lines]
+total_added = len(diff_lines)
+
+patch_content = f"""diff --git a/osfmk/console/serial_console.c b/osfmk/console/serial_console.c
+index c86b9e7..8bb74ef 100755
+--- a/osfmk/console/serial_console.c
++++ b/osfmk/console/serial_console.c
+@@ -242,9 +242,{total_added + 9} @@ get_cons_ops_index(void)
+  * @param poll Whether or not this call should poll instead of going to sleep
+  *             waiting for an interrupt when the hardware device isn't ready
+  */
+""" + "\n".join(diff_lines) + """
+ static inline void
+ _cnputc(char c, bool poll)
+ {
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	if (sweet_con_putc(c)) {
++		return;
++	}
++#endif
+ 	bool in_debugger = (kernel_debugger_entry_count > 0);
+ 	const uint32_t idx = get_cons_ops_index();
+"""
+
+out_patch = r"G:\ios_grus_port\ios-grus\xnu\patches\0094-sweet-own-console.patch"
+with open(out_patch, "w", newline="\n") as f:
+    f.write(patch_content)
+
+print(f"Updated 0094-sweet-own-console.patch with Apple logo ({total_added} lines added)!")

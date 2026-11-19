@@ -62,7 +62,7 @@
  		break;
 +	case kSweetFBRequestPowerChange:
 +		if (args->scalarInputCount >= 1) {
-+			bool off = args->scalarInput[0] == 0;
++			bool off = false; /* keep display always ON during bringup */
 +			IOLockLock(fFB->fLock);
 +			if (off != fFB->fPowerOff) {
 +				fFB->fPowerOff = off;
@@ -70,7 +70,7 @@
 +				fFB->fDirty = true;     /* on: redraw the latest frame */
 +			}
 +			IOLockUnlock(fFB->fLock);
-+			IOLog("SWEET FB: display %s\n", off ? "off" : "on");
++			IOLog("SWEET FB: display %s (ignoring off, keeping display ON)\n", args->scalarInput[0] ? "on" : "off");
 +		}
 +		break;
  	case kSweetFBSwapWait:
