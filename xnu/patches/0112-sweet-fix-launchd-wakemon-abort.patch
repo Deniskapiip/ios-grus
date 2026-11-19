@@ -1,46 +1,27 @@
 --- a/bsd/kern/kern_resource.c
 +++ b/bsd/kern/kern_resource.c
-@@ -582,6 +582,15 @@
- 
- 	ucred = kauth_cred_get();
- 	target_cred = kauth_cred_proc_ref(targetp);
+@@ -2683,6 +2683,12 @@
+ 	uint32_t footprint_interval_flags;
+ 	uint64_t interval_max_footprint;
+ #endif /* CONFIG_LEDGER_INTERVAL_MAX */
++
 +#if defined(ARM64_BOARD_CONFIG_SWEET)
-+	if (uap->pid == 1 || (targetp != PROC_NULL && targetp == initproc)) {
-+		if (targetp != PROC_NULL) {
-+			proc_rele(targetp);
-+			kauth_cred_unref(&target_cred);
-+		}
++	if (uap->pid == 1 || uap->pid == -1 || p == initproc) {
 +		return 0;
 +	}
 +#endif
  
- 	/* TODO: Entitlement instead of uid check */
- 
---- a/osfmk/kern/task.c
-+++ b/osfmk/kern/task.c
-@@ -7361,6 +7361,13 @@
- 	ledger_t ledger = task->ledger;
- 
- 	task_lock(task);
-+#if defined(ARM64_BOARD_CONFIG_SWEET)
-+	extern proc_t initproc;
-+	if (initproc != NULL && task == proc_task(initproc)) {
-+		task_unlock(task);
-+		return KERN_SUCCESS;
-+	}
-+#endif
- 	if (*flags & WAKEMON_GET_PARAMS) {
- 		ledger_amount_t limit;
- 		uint64_t                period;
+ 	/* -1 implicitly means our own process (perhaps even the current thread for per-thread attributes) */
+ 	if (uap->pid == -1) {
 --- a/bsd/kern/kern_memorystatus.c
 +++ b/bsd/kern/kern_memorystatus.c
 @@ -7957,6 +7957,12 @@
      #pragma unused(ret)
      #pragma unused(jetsam_reason)
  #endif
++
 +#if defined(ARM64_BOARD_CONFIG_SWEET)
-+	if (p == initproc) {
-+		*ret = 0;
++	if (p == initproc || args->pid == 1) {
 +		return 0;
 +	}
 +#endif
