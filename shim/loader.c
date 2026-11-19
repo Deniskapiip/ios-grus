@@ -8,9 +8,34 @@
  * and caches off, x0 = boot_args (physical).
  */
 #include <stdint.h>
+#include "board.h"
 #include "console.h"
 #include "fdt.h"
 #include "loader.h"
+#include "apple_logo.h"
+
+static void draw_apple_logo(void)
+{
+	volatile uint32_t *fb = (volatile uint32_t *)FB_BASE;
+	unsigned int scale = 2;
+	unsigned int logo_w = APPLE_LOGO_W * scale;
+	unsigned int logo_h = APPLE_LOGO_H * scale;
+	unsigned int start_x = (FB_W - logo_w) / 2;
+	unsigned int start_y = (FB_H - logo_h) / 2;
+	for (unsigned int ly = 0; ly < APPLE_LOGO_H; ly++) {
+		const unsigned char *row = &apple_logo_bitmap[ly * APPLE_LOGO_STRIDE];
+		for (unsigned int sy = 0; sy < scale; sy++) {
+			volatile uint32_t *dst_row = fb + (start_y + ly * scale + sy) * (FB_STRIDE / 4);
+			for (unsigned int lx = 0; lx < APPLE_LOGO_W; lx++) {
+				if (row[lx / 8] & (0x80u >> (lx % 8))) {
+					for (unsigned int sx = 0; sx < scale; sx++) {
+						dst_row[start_x + lx * scale + sx] = 0xffffffffu;
+					}
+				}
+			}
+		}
+	}
+}
 
 #define BOOT_LINE_LENGTH	608
 #define PAGE_16K		0x4000UL
@@ -87,8 +112,8 @@ typedef void (*xnu_entry_t)(uint64_t boot_args_pa);
  * The two addresses are kernel links (kernel.development.sweet); they must be
  * refreshed for every kernel build (tools/98_find_log_syms.py prints them).
  */
-#define SWEET_LOG_TOTAL_VA	0xfffffe0007c4e5f0ULL
-#define SWEET_LOG_RING_VA	0xfffffe0007c4e5f8ULL
+#define SWEET_LOG_TOTAL_VA	0xfffffe0007c52650ULL
+#define SWEET_LOG_RING_VA	0xfffffe0007c52658ULL
 #define SWEET_LOG_SIZE		(4u << 20)
 #define SWEET_LOG_LINES		44
 #define SWEET_LOG_COLS		78
@@ -169,8 +194,8 @@ const char *loader_boot(uintptr_t dtb)
 	con_hex("VIRT", p->virt_base);
 	con_hex("ENTRY", p->entry_va);
 
-	/* Previous boot's console log, if it hung: show it and stop. */
-	sweet_dram_log(pa_of_va_base);
+	/* Previous boot's console log disabled to prevent hangs */
+	/* sweet_dram_log(pa_of_va_base); */
 
 	/* The payload must not overlap where the kernel goes. */
 	if (rd_end > p->phys_base && rd_start < p->phys_base + p->mem_size)
@@ -217,10 +242,10 @@ const char *loader_boot(uintptr_t dtb)
 	con_str("XNU", "jumping (fbcon clears screen)");
 
 	/*
-	 * Wipe the console: the kernel console does not clear the screen, so
-	 * without this the previous boot's log stays visible above the new one.
+	 * Wipe the console and draw Apple logo: clean iPhone 1:1 boot screen.
 	 */
 	con_clear(0x00000000);
+	draw_apple_logo();
 
 	/* Everything was written with the MMU and caches off; drop any stale I-cache lines too. */
 	__asm__ volatile("dsb sy; ic iallu; dsb sy; isb" ::: "memory");
