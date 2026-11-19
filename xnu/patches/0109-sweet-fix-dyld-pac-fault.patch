@@ -69,3 +69,17 @@ index bf796d6..8a91310 100644
  		handle_abort(state, esr, far, inspect_instruction_abort, handle_user_abort, expected_fault_handler);
  		break;
  
+@@ -762,8 +786,13 @@ sleh_synchronous(arm_context_t *context, uint32_t esr, vm_offset_t far)
+ #if CONFIG_UBSAN_MINIMAL
+ 			/* UBSan breakpoints are recoverable */
+ 			break;
+ #endif /* CONFIG_UBSAN_MINIMAL */
+ 		} else {
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++			uint64_t pc = (uint64_t)get_saved_state_pc(state);
++			set_saved_state_pc(state, pc + 4);
++			thread_exception_return();
++#endif
+ 			handle_breakpoint(state, esr);
+ 			__builtin_unreachable();
+ 		}
