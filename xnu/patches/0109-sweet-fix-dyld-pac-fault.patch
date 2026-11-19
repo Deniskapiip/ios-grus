@@ -1,6 +1,6 @@
 --- a/osfmk/arm64/sleh.c
 +++ b/osfmk/arm64/sleh.c
-@@ -733,6 +733,26 @@
+@@ -733,6 +733,48 @@
  		break;
  
  	case ESR_EC_DABORT_EL0:
@@ -9,6 +9,24 @@
 +			uint64_t pc = (uint64_t)get_saved_state_pc(state);
 +			uint32_t instr = 0;
 +			if (copyin((user_addr_t)pc, &instr, sizeof(instr)) == 0) {
++				unsigned int rn = (instr >> 5) & 0x1f;
++				if (rn < 31) {
++					uint64_t rn_val = (uint64_t)get_saved_state_reg(state, rn);
++					uint64_t rn_clean = rn_val & 0x00007fffffffffffULL;
++					if (rn_clean != rn_val) {
++						set_saved_state_reg(state, rn, rn_clean);
++						thread_exception_return();
++					}
++				}
++				unsigned int rm = (instr >> 16) & 0x1f;
++				if (rm < 31) {
++					uint64_t rm_val = (uint64_t)get_saved_state_reg(state, rm);
++					uint64_t rm_clean = rm_val & 0x00007fffffffffffULL;
++					if (rm_clean != rm_val) {
++						set_saved_state_reg(state, rm, rm_clean);
++						thread_exception_return();
++					}
++				}
 +				unsigned int rt = instr & 0x1f;
 +				if (rt < 31) {
 +					set_saved_state_reg(state, rt, 0);
@@ -25,6 +43,17 @@
 +		}
 +#endif
  		handle_abort(state, esr, far, inspect_data_abort, handle_user_abort, expected_fault_handler);
+ 		break;
+ 
+@@ -754,6 +796,14 @@
+ 	case ESR_EC_IABORT_EL0:
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++		if ((far & 0xffff800000000000ULL) != 0 || far >= 0x00007ffffffff000ULL) {
++			set_saved_state_pc(state, far & 0x00007fffffffffffULL);
++			thread_exception_return();
++		}
++#endif
+ 		handle_abort(state, esr, far, inspect_instruction_abort, handle_user_abort, expected_fault_handler);
  		break;
  
 --- a/bsd/vm/vm_unix.c
