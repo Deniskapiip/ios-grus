@@ -1,8 +1,22 @@
 diff --git a/bsd/kern/kern_exit.c b/bsd/kern/kern_exit.c
-index 48a0198..744e3ed 100644
 --- a/bsd/kern/kern_exit.c
 +++ b/bsd/kern/kern_exit.c
-@@ -1804,6 +1804,12 @@ proc_handle_critical_exit(proc_t p, int rv)
+@@ -1475,6 +1475,14 @@ exit_with_reason(proc_t p, int rv, int *retval, boolean_t thread_can_terminate,
+ 	int error = 0;
+ 	bool proc_exiting = false;
+ 
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	if (p == initproc) {
++		printf("SWEET: intercepted exit_with_reason for launchd! rv=%d\n", rv);
++		while (TRUE) {
++			thread_block(THREAD_CONTINUE_NULL);
++		}
++	}
++#endif
+ #if DEVELOPMENT || DEBUG
+ 	/*
+ 	 * Debug boot-arg: panic here if matching process is exiting with non-zero code.
+@@ -1804,6 +1812,12 @@ proc_handle_critical_exit(proc_t p, int rv)
  	char prefix_str_buf[128];
  
  	if (p == initproc) {
@@ -16,25 +30,14 @@ index 48a0198..744e3ed 100644
  			prefix_str = "LTE preinit process exited";
  		} else if (initproc_spawned) {
 diff --git a/bsd/kern/kern_sig.c b/bsd/kern/kern_sig.c
-index ae4a5f3..ae17b15 100644
 --- a/bsd/kern/kern_sig.c
 +++ b/bsd/kern/kern_sig.c
-@@ -2045,6 +2045,13 @@ psignal_internal(proc_t p, task_t task, thread_t thread, int flavor, int signum,
- 	char                    *launchd_exit_reason_desc = NULL;
- 	boolean_t               update_thread_policy = FALSE;
- 
-+#if defined(ARM64_BOARD_CONFIG_SWEET)
+@@ -2055,3 +2055,3 @@ psignal_internal(proc_t p, task_t task, thread_t thread, int flavor, int signum,
+ #if defined(ARM64_BOARD_CONFIG_SWEET)
+-	if (p != PROC_NULL && p == initproc && (signum == SIGABRT || signum == SIGKILL || signum == SIGTRAP)) {
 +	if (p != PROC_NULL && p == initproc && (signum == SIGABRT || signum == SIGKILL || signum == SIGTRAP || signum == SIGSEGV || signum == SIGBUS || signum == SIGILL)) {
-+		printf("SWEET: intercepted fatal signal %d for launchd!\n", signum);
-+		return;
-+	}
-+#endif
-+
- 	if ((u_int)signum >= NSIG || signum == 0) {
- 		panic("psignal: bad signal number %d", signum);
- 	}
+ 		printf("SWEET: intercepted fatal signal %d for launchd!\n", signum);
 diff --git a/osfmk/arm64/sleh.c b/osfmk/arm64/sleh.c
-index 2cc442e..bd6abf7 100644
 --- a/osfmk/arm64/sleh.c
 +++ b/osfmk/arm64/sleh.c
 @@ -1400,6 +1400,17 @@ handle_user_abort(arm_saved_state_t *state, uint32_t esr, vm_offset_t fault_addr
@@ -44,9 +47,9 @@ index 2cc442e..bd6abf7 100644
 +#if defined(ARM64_BOARD_CONFIG_SWEET)
 +		if (result != KERN_SUCCESS && result != KERN_ABORTED) {
 +			uint64_t sp = (uint64_t)get_saved_state_sp(state);
-+			if (fault_addr >= (sp - 0x20000) && fault_addr <= (sp + 0x20000)) {
-+				vm_map_offset_t alloc_addr = fault_addr & ~0x3fffULL;
-+				mach_vm_allocate_kernel(map, &alloc_addr, 0x4000, VM_FLAGS_FIXED, VM_KERN_MEMORY_NONE);
++			if (vm_fault_addr >= (sp - 0x40000) && vm_fault_addr <= (sp + 0x40000)) {
++				mach_vm_offset_t alloc_addr = vm_fault_addr & ~0x3fffULL;
++				mach_vm_allocate_kernel(map, &alloc_addr, 0x4000, VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE, VM_KERN_MEMORY_NONE);
 +				result = vm_fault(map, vm_fault_addr, fault_type,
 +				    FALSE, VM_KERN_MEMORY_NONE, THREAD_ABORTSAFE, NULL, 0);
 +			}
