@@ -1,27 +1,22 @@
 diff --git a/bsd/kern/kern_exit.c b/bsd/kern/kern_exit.c
-index 48a0198..e5f3108 100644
+index 48a0198..7dc7b74 100644
 --- a/bsd/kern/kern_exit.c
 +++ b/bsd/kern/kern_exit.c
-@@ -1339,6 +1339,18 @@ abort_with_payload_internal(proc_t p,
+@@ -1339,6 +1339,13 @@ abort_with_payload_internal(proc_t p,
  	os_reason_t exit_reason = OS_REASON_NULL;
  	kern_return_t kr = KERN_SUCCESS;
  
 +#if defined(ARM64_BOARD_CONFIG_SWEET)
 +	if (p == initproc) {
-+		char desc[128] = {0};
-+		if (reason_string) {
-+			copyinstr(reason_string, desc, sizeof(desc) - 1, NULL);
-+		}
-+		printf("SWEET: intercepted abort_with_payload for launchd! namespace=%u code=0x%llx desc=%s\n",
-+		    reason_namespace, reason_code, desc);
++		printf("SWEET: intercepted abort_with_payload for launchd! namespace=%u code=0x%llx\n",
++		    reason_namespace, reason_code);
 +		return 0;
 +	}
 +#endif
-+
  	if (internal_flags & OS_REASON_IFLAG_USER_FAULT) {
  		uint32_t old_value = atomic_load_explicit(&p->p_user_faults,
  		    memory_order_relaxed);
-@@ -1432,6 +1444,14 @@ __attribute__((noreturn))
+@@ -1432,6 +1439,14 @@ __attribute__((noreturn))
  void
  exit(proc_t p, struct exit_args *uap, int *retval)
  {
@@ -37,21 +32,17 @@ index 48a0198..e5f3108 100644
  	exit1(p, W_EXITCODE((uint32_t)uap->rval, 0), retval);
  
 diff --git a/bsd/kern/kern_sig.c b/bsd/kern/kern_sig.c
-index ae4a5f3..c289d7e 100644
+index ae4a5f3..1f5ed15 100644
 --- a/bsd/kern/kern_sig.c
 +++ b/bsd/kern/kern_sig.c
-@@ -1555,6 +1555,18 @@ terminate_with_payload_internal(struct proc *cur_proc, int target_pid, uint32_t
+@@ -1555,6 +1555,14 @@ terminate_with_payload_internal(struct proc *cur_proc, int target_pid, uint32_t
  
  	os_reason_t signal_reason = OS_REASON_NULL;
  
 +#if defined(ARM64_BOARD_CONFIG_SWEET)
 +	if (target_pid == 1 || cur_proc == initproc) {
-+		char desc[128] = {0};
-+		if (reason_string) {
-+			copyinstr(reason_string, desc, sizeof(desc) - 1, NULL);
-+		}
-+		printf("SWEET: intercepted terminate_with_payload for launchd! namespace=%u code=0x%llx desc=%s\n",
-+		    reason_namespace, reason_code, desc);
++		printf("SWEET: intercepted terminate_with_payload for launchd! namespace=%u code=0x%llx\n",
++		    reason_namespace, reason_code);
 +		return 0;
 +	}
 +#endif
@@ -59,7 +50,7 @@ index ae4a5f3..c289d7e 100644
  	AUDIT_ARG(pid, target_pid);
  	if ((target_pid <= 0)) {
  		return EINVAL;
-@@ -2045,6 +2057,13 @@ psignal_internal(proc_t p, task_t task, thread_t thread, int flavor, int signum,
+@@ -2045,6 +2053,13 @@ psignal_internal(proc_t p, task_t task, thread_t thread, int flavor, int signum,
  	char                    *launchd_exit_reason_desc = NULL;
  	boolean_t               update_thread_policy = FALSE;
  
