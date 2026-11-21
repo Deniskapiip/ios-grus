@@ -1,7 +1,6 @@
-diff --git a/bsd/arm/vmparam.h b/bsd/arm/vmparam.h
 --- a/bsd/arm/vmparam.h
 +++ b/bsd/arm/vmparam.h
-@@ -31,14 +31,14 @@
+@@ -31,7 +31,7 @@
          (defined(KERNEL) && XNU_TARGET_OS_OSX)
  #define DFLSSIZ         (8*1024*1024 - 16*1024)
  #else
@@ -10,8 +9,7 @@ diff --git a/bsd/arm/vmparam.h b/bsd/arm/vmparam.h
  #endif /* TARGET_OS_OSX .. || XNU_KERNEL_PRIVATE .. */
  #endif /* DFLSSIZ */
  #ifndef MAXSSIZ
- /* XXX stack size limit is a platform property: use getrlimit(2) */
- #if (defined(TARGET_OS_OSX) && (TARGET_OS_OSX != 0)) || \
+@@ -40,7 +40,7 @@
          (defined(KERNEL) && XNU_TARGET_OS_OSX)
  #define MAXSSIZ         (64*1024*1024)          /* max stack size */
  #else
@@ -19,10 +17,11 @@ diff --git a/bsd/arm/vmparam.h b/bsd/arm/vmparam.h
 +#define MAXSSIZ         (64*1024*1024)          /* max stack size */
  #endif /* TARGET_OS_OSX .. || XNU_KERNEL_PRIVATE .. */
  #endif /* MAXSSIZ */
-diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
+ #ifndef DFLCSIZ
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
-@@ -6655,6 +6655,15 @@ create_unix_stack(vm_map_t map, load_result_t* load_result,
+@@ -6654,6 +6654,15 @@
+ 
  	mach_vm_address_t       user_stack = load_result->user_stack;
  
 +#if defined(ARM64_BOARD_CONFIG_SWEET)
@@ -37,12 +36,15 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
  	proc_lock(p);
  	p->user_stack = (uintptr_t)user_stack;
  	if (load_result->custom_stack) {
-diff --git a/osfmk/arm64/sleh.c b/osfmk/arm64/sleh.c
 --- a/osfmk/arm64/sleh.c
 +++ b/osfmk/arm64/sleh.c
-@@ -1463,6 +1463,22 @@ handle_user_abort(arm_saved_state_t *state, uint32_t esr, vm_offset_t fault_addr
- 			}
- 		}
+@@ -1469,6 +1469,23 @@
+ 				mach_vm_allocate_kernel(map, &alloc_addr, 0x4000, VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE, VM_KERN_MEMORY_NONE);
+ 				result = vm_fault(map, vm_fault_addr, fault_type,
+ 				    FALSE, VM_KERN_MEMORY_NONE, THREAD_ABORTSAFE, NULL, 0);
++			}
++		}
++#endif
 +#if defined(ARM64_BOARD_CONFIG_SWEET)
 +		if (result != KERN_SUCCESS && result != KERN_ABORTED) {
 +			uint64_t sp = (uint64_t)get_saved_state_sp(state);
@@ -57,9 +59,6 @@ diff --git a/osfmk/arm64/sleh.c b/osfmk/arm64/sleh.c
 +					result = vm_fault(map, vm_fault_addr, fault_type,
 +					    FALSE, VM_KERN_MEMORY_NONE, THREAD_ABORTSAFE, NULL, 0);
 +				}
-+			}
-+		}
-+#endif
- 		if (thread->t_rr_state.trr_fault_state != TRR_FAULT_NONE) {
- 			thread_reset_pcs_done_faulting(thread);
+ 			}
  		}
+ #endif
