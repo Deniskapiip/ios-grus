@@ -38,13 +38,10 @@
  	if (load_result->custom_stack) {
 --- a/osfmk/arm64/sleh.c
 +++ b/osfmk/arm64/sleh.c
-@@ -1469,6 +1469,23 @@
- 				mach_vm_allocate_kernel(map, &alloc_addr, 0x4000, VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE, VM_KERN_MEMORY_NONE);
- 				result = vm_fault(map, vm_fault_addr, fault_type,
- 				    FALSE, VM_KERN_MEMORY_NONE, THREAD_ABORTSAFE, NULL, 0);
-+			}
-+		}
-+#endif
+@@ -1461,6 +1461,23 @@
+ 				    /* caller_pmap */ NULL, /* caller_pmap_addr */ 0);
+ 			}
+ 		}
 +#if defined(ARM64_BOARD_CONFIG_SWEET)
 +		if (result != KERN_SUCCESS && result != KERN_ABORTED) {
 +			uint64_t sp = (uint64_t)get_saved_state_sp(state);
@@ -59,6 +56,9 @@
 +					result = vm_fault(map, vm_fault_addr, fault_type,
 +					    FALSE, VM_KERN_MEMORY_NONE, THREAD_ABORTSAFE, NULL, 0);
 +				}
- 			}
++			}
++		}
++#endif
+ 		if (thread->t_rr_state.trr_fault_state != TRR_FAULT_NONE) {
+ 			thread_reset_pcs_done_faulting(thread);
  		}
- #endif
