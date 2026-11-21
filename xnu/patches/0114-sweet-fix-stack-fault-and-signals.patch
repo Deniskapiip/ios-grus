@@ -1,57 +1,62 @@
-diff --git a/bsd/kern/kern_exit.c b/bsd/kern/kern_exit.c
---- a/bsd/kern/kern_exit.c
-+++ b/bsd/kern/kern_exit.c
-@@ -1475,6 +1475,14 @@ exit_with_reason(proc_t p, int rv, int *retval, boolean_t thread_can_terminate,
- 	int error = 0;
- 	bool proc_exiting = false;
+diff --git a/bsd/arm/vmparam.h b/bsd/arm/vmparam.h
+--- a/bsd/arm/vmparam.h
++++ b/bsd/arm/vmparam.h
+@@ -31,14 +31,14 @@
+         (defined(KERNEL) && XNU_TARGET_OS_OSX)
+ #define DFLSSIZ         (8*1024*1024 - 16*1024)
+ #else
+-#define DFLSSIZ         (1024*1024 - 16*1024)   /* initial stack size limit */
++#define DFLSSIZ         (16*1024*1024 - 16*1024)   /* initial stack size limit */
+ #endif /* TARGET_OS_OSX .. || XNU_KERNEL_PRIVATE .. */
+ #endif /* DFLSSIZ */
+ #ifndef MAXSSIZ
+ /* XXX stack size limit is a platform property: use getrlimit(2) */
+ #if (defined(TARGET_OS_OSX) && (TARGET_OS_OSX != 0)) || \
+         (defined(KERNEL) && XNU_TARGET_OS_OSX)
+ #define MAXSSIZ         (64*1024*1024)          /* max stack size */
+ #else
+-#define MAXSSIZ         (1024*1024)             /* max stack size */
++#define MAXSSIZ         (64*1024*1024)          /* max stack size */
+ #endif /* TARGET_OS_OSX .. || XNU_KERNEL_PRIVATE .. */
+ #endif /* MAXSSIZ */
+diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
+--- a/bsd/kern/kern_exec.c
++++ b/bsd/kern/kern_exec.c
+@@ -6655,6 +6655,15 @@ create_unix_stack(vm_map_t map, load_result_t* load_result,
+ 	mach_vm_address_t       user_stack = load_result->user_stack;
  
 +#if defined(ARM64_BOARD_CONFIG_SWEET)
-+	if (p == initproc) {
-+		printf("SWEET: intercepted exit_with_reason for launchd! rv=%d\n", rv);
-+		while (TRUE) {
-+			thread_block(THREAD_CONTINUE_NULL);
-+		}
++	/* Sweet/Grus: ensure ample committed user stack (16MB total, 8MB usable) to avoid chkstk fault */
++	if (load_result->user_stack_alloc_size < 16 * 1024 * 1024) {
++		load_result->user_stack_alloc_size = 16 * 1024 * 1024;
++	}
++	if (load_result->user_stack_size < 8 * 1024 * 1024) {
++		load_result->user_stack_size = 8 * 1024 * 1024;
 +	}
 +#endif
- #if DEVELOPMENT || DEBUG
- 	/*
- 	 * Debug boot-arg: panic here if matching process is exiting with non-zero code.
-@@ -1804,6 +1812,12 @@ proc_handle_critical_exit(proc_t p, int rv)
- 	char prefix_str_buf[128];
- 
- 	if (p == initproc) {
-+#if defined(ARM64_BOARD_CONFIG_SWEET)
-+		printf("SWEET: intercepted initproc exit/panic! blocking thread.\n");
-+		while (TRUE) {
-+			thread_block(THREAD_CONTINUE_NULL);
-+		}
-+#endif
- 		if (strnstr(p->p_name, "preinit", sizeof(p->p_name))) {
- 			prefix_str = "LTE preinit process exited";
- 		} else if (initproc_spawned) {
-diff --git a/bsd/kern/kern_sig.c b/bsd/kern/kern_sig.c
---- a/bsd/kern/kern_sig.c
-+++ b/bsd/kern/kern_sig.c
-@@ -2055,3 +2055,3 @@ psignal_internal(proc_t p, task_t task, thread_t thread, int flavor, int signum,
- #if defined(ARM64_BOARD_CONFIG_SWEET)
--	if (p != PROC_NULL && p == initproc && (signum == SIGABRT || signum == SIGKILL || signum == SIGTRAP)) {
-+	if (p != PROC_NULL && p == initproc && (signum == SIGABRT || signum == SIGKILL || signum == SIGTRAP || signum == SIGSEGV || signum == SIGBUS || signum == SIGILL)) {
- 		printf("SWEET: intercepted fatal signal %d for launchd!\n", signum);
+ 	proc_lock(p);
+ 	p->user_stack = (uintptr_t)user_stack;
+ 	if (load_result->custom_stack) {
 diff --git a/osfmk/arm64/sleh.c b/osfmk/arm64/sleh.c
 --- a/osfmk/arm64/sleh.c
 +++ b/osfmk/arm64/sleh.c
-@@ -1400,6 +1400,17 @@ handle_user_abort(arm_saved_state_t *state, uint32_t esr, vm_offset_t fault_addr
- 				    /* caller_pmap */ NULL, /* caller_pmap_addr */ 0);
+@@ -1463,6 +1463,22 @@ handle_user_abort(arm_saved_state_t *state, uint32_t esr, vm_offset_t fault_addr
  			}
  		}
 +#if defined(ARM64_BOARD_CONFIG_SWEET)
 +		if (result != KERN_SUCCESS && result != KERN_ABORTED) {
 +			uint64_t sp = (uint64_t)get_saved_state_sp(state);
-+			if (vm_fault_addr >= (sp - 0x40000) && vm_fault_addr <= (sp + 0x40000)) {
++			if (vm_fault_addr >= (sp - 0x100000) && vm_fault_addr <= (sp + 0x100000)) {
 +				mach_vm_offset_t alloc_addr = vm_fault_addr & ~0x3fffULL;
-+				mach_vm_allocate_kernel(map, &alloc_addr, 0x4000, VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE, VM_KERN_MEMORY_NONE);
-+				result = vm_fault(map, vm_fault_addr, fault_type,
-+				    FALSE, VM_KERN_MEMORY_NONE, THREAD_ABORTSAFE, NULL, 0);
++				if (mach_vm_protect(map, alloc_addr, 0x4000, FALSE, VM_PROT_DEFAULT) == KERN_SUCCESS) {
++					result = vm_fault(map, vm_fault_addr, fault_type,
++					    FALSE, VM_KERN_MEMORY_NONE, THREAD_ABORTSAFE, NULL, 0);
++				}
++				if (result != KERN_SUCCESS) {
++					mach_vm_allocate_kernel(map, &alloc_addr, 0x4000, VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE, VM_KERN_MEMORY_NONE);
++					result = vm_fault(map, vm_fault_addr, fault_type,
++					    FALSE, VM_KERN_MEMORY_NONE, THREAD_ABORTSAFE, NULL, 0);
++				}
 +			}
 +		}
 +#endif

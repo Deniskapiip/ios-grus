@@ -15,12 +15,14 @@ diff --git a/osfmk/console/serial_console.c b/osfmk/console/serial_console.c
 diff --git a/iokit/Kernel/arm/SweetFramebuffer.cpp b/iokit/Kernel/arm/SweetFramebuffer.cpp
 --- a/iokit/Kernel/arm/SweetFramebuffer.cpp
 +++ b/iokit/Kernel/arm/SweetFramebuffer.cpp
-@@ -290,9 +290,7 @@ AppleCLCD::present(const uint8_t *rec)
+@@ -317,11 +317,7 @@ AppleCLCD::present(const uint8_t *rec)
  
  	if (!fConsolePaused) {
  		int quiet = 0;
  		fConsolePaused = true;
 -		if (PE_parse_boot_argn("sweetfb_noconsole", &quiet, sizeof(quiet)) && quiet != 0) {
+-			/* Not PE_initialize_console(kPEDisableScreen): its console switch
+-			 * writes the read-only-late cons_ops_index and panics. */
 -			sweet_console_muted = 1;
 -		}
 +		sweet_console_muted = 1;
@@ -30,12 +32,12 @@ diff --git a/iokit/Kernel/arm/SweetFramebuffer.cpp b/iokit/Kernel/arm/SweetFrame
 diff --git a/bsd/dev/sweet_keys.c b/bsd/dev/sweet_keys.c
 --- a/bsd/dev/sweet_keys.c
 +++ b/bsd/dev/sweet_keys.c
-@@ -179,8 +179,11 @@ keys_thread(void *arg, wait_result_t result)
+@@ -131,8 +131,11 @@ keys_thread(void *arg, wait_result_t result)
  		for (int k = 0; k < 3; ++k) {
  			if ((k == 1 ? gok : pok) && now[k] != state[k]) {
  				state[k] = now[k];
 -				printf("SWEET KEYS: key=%d down=%d pon=%#x gpio=%#x grus=%d\n",
--				    k, state[k], pon, gpio, st.grus);
+-				    k, state[k], pon, gpio, keys_grus);
 +				extern int sweet_console_muted;
 +				if (!sweet_console_muted) {
 +					printf("SWEET KEYS: key=%d down=%d\n",
