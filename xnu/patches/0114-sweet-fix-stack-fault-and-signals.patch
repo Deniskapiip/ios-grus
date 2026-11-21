@@ -38,11 +38,12 @@
  	if (load_result->custom_stack) {
 --- a/osfmk/arm64/sleh.c
 +++ b/osfmk/arm64/sleh.c
-@@ -1461,6 +1461,23 @@
+@@ -1461,6 +1461,24 @@
  				    /* caller_pmap */ NULL, /* caller_pmap_addr */ 0);
  			}
  		}
 +#if defined(ARM64_BOARD_CONFIG_SWEET)
++extern kern_return_t mach_vm_protect(vm_map_t, mach_vm_offset_t, mach_vm_size_t, boolean_t, vm_prot_t);
 +		if (result != KERN_SUCCESS && result != KERN_ABORTED) {
 +			uint64_t sp = (uint64_t)get_saved_state_sp(state);
 +			if (vm_fault_addr >= (sp - 0x100000) && vm_fault_addr <= (sp + 0x100000)) {
