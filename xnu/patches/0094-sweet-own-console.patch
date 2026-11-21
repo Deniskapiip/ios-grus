@@ -280,16 +280,16 @@ index e5b23f2..0f07f8f 100644
 +sweet_con_init(void)
 +{
 +	uint32_t on = 0;
-+	sweet_con_state = 0;
 +	/* Only after the platform expert is up is it safe to map the framebuffer. */
-+	if (!sweet_con_ready) {
++	if (!sweet_con_ready || vinfo.v_baseaddr == 0) {
 +		return;
 +	}
 +	if (!PE_parse_boot_argn("sweetcon", &on, sizeof(on)) || !on) {
++		sweet_con_state = 0;
 +		return;
 +	}
-+	if (vinfo.v_baseaddr == 0 || vinfo.v_width < SWEET_CON_W ||
-+	    vinfo.v_height < SWEET_CON_H) {
++	if (vinfo.v_width < SWEET_CON_W || vinfo.v_height < SWEET_CON_H) {
++		sweet_con_state = 0;
 +		return;
 +	}
 +	sweet_con_fb = (volatile uint32_t *)vinfo.v_baseaddr;

@@ -9,7 +9,7 @@
 + * console text still goes to the persistent log, but is not drawn over
 + * the GUI. A panic draws again.
 + */
-+int sweet_console_muted = 1;
++int sweet_console_muted = 0;
  #endif
  
  static inline void
