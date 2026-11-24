@@ -1,0 +1,174 @@
+--- a/bsd/dev/sweet_touch.c
++++ b/bsd/dev/sweet_touch.c
+@@ -234,15 +234,20 @@
+ 		return EBUSY;
+ 	}
+ 	touch_wr(st.se, SE_IRQ_CLR, 0xffffffffu);
+-	touch_wr(st.se, SE_TX_WM, nt ? 1u : 0u);
++	touch_wr(st.se, SE_TX_WM, 0);
+ 	touch_wr(st.se, nr ? SE_RX_LEN : SE_TX_LEN, nr ? nr : nt);
+ 	touch_wr(st.se, SE_CMD, ((nr ? 2u : 1u) << 27) |
+ 	    ((uint32_t)addr << 9) | (stretch ? 4u : 0u));
++	/* Arm the TX watermark for the new command, after submitting it. */
++	if (nt) {
++		touch_wr(st.se, SE_TX_WM, 1);
++	}
+ 	int err = ETIMEDOUT;
+ 	for (unsigned i = 0; i < 20000; ++i) {
+ 		uint32_t irq = touch_irq();
+ 		if (irq & SE_ERRORS) {
+ 			err = (irq & SE_NACK) ? ENXIO : EIO;
++			touch_wr(st.se, SE_TX_WM, 0);
+ 			/* A completed NACK is normal during address probing. Aborting an
+ 			 * idle sequencer may never produce ABORT_DONE. Wait for completion
+ 			 * and leave a clean idle engine available for the other IC. */
+@@ -296,6 +301,7 @@
+ 		touch_wr(st.se, SE_IRQ_CLR, irq & (SE_RX_WM_IRQ | SE_RX_LAST | SE_TX_WM_IRQ));
+ 		delay(1);
+ 	}
++	touch_wr(st.se, SE_TX_WM, 0);
+ 	touch_abort();
+ 	return err;
+ }
+@@ -460,11 +466,12 @@
+  * 0x00 write back to 0x824e.
+  */
+ static int
+-touch_goodix_gtx8(void)
++touch_goodix_gtx8(const char **stage)
+ {
+ 	uint8_t buf[GOODIX_GTX8_HEAD + GOODIX_GTX8_POINT * TOUCH_MAX + 2];
+ 	int x[TOUCH_MAX] = {0}, y[TOUCH_MAX] = {0};
+ 	uint32_t mask = 0;
++	*stage = "header";
+ 	int err = touch_read(0x5d, GOODIX_GTX8_REG, true, buf,
+ 	    GOODIX_GTX8_HEAD + GOODIX_GTX8_POINT + 2);
+ 	if (err) {
+@@ -475,11 +482,14 @@
+ 		return (buf[0] & 0x40u) ? ENOTSUP : 0;
+ 	}
+ 	unsigned n = buf[1] & 15u;
+-	if (n == 0 || n > TOUCH_MAX) {
+-		return EIO;
++	if (n > TOUCH_MAX) {
++		*stage = "contact count";
++		err = EIO;
++		goto ack;
+ 	}
+ 	unsigned total = GOODIX_GTX8_HEAD + n * GOODIX_GTX8_POINT + 2;
+ 	if (n > 1) {
++		*stage = "contacts";
+ 		err = touch_read(0x5d, GOODIX_GTX8_REG + GOODIX_GTX8_HEAD +
+ 		    GOODIX_GTX8_POINT, true, buf + GOODIX_GTX8_HEAD + GOODIX_GTX8_POINT,
+ 		    (n - 1) * GOODIX_GTX8_POINT + 2);
+@@ -491,8 +501,10 @@
+ 	for (unsigned i = 0; i < total; ++i) {
+ 		sum += buf[i];
+ 	}
+-	if ((sum & 0xffu) != 0) {
+-		return EIO;
++	if (n && (sum & 0xffu) != 0) {
++		*stage = "checksum";
++		err = EIO;
++		goto ack;
+ 	}
+ 	for (unsigned i = 0; i < n; ++i) {
+ 		const uint8_t *p = buf + GOODIX_GTX8_HEAD + i * GOODIX_GTX8_POINT;
+@@ -500,15 +512,23 @@
+ 		unsigned px = (unsigned)p[1] | ((unsigned)p[2] << 8);
+ 		unsigned py = (unsigned)p[3] | ((unsigned)p[4] << 8);
+ 		if (id >= TOUCH_MAX || (mask & (1u << id)) || px > 1079 || py > 2339) {
+-			return EIO;
++			*stage = "coordinates";
++			err = EIO;
++			goto ack;
+ 		}
+ 		mask |= 1u << id;
+ 		x[id] = (int)px;
+ 		y[id] = (int)py;
+ 	}
++ack:;
++	/* Clear a consumed frame even if validation failed, so it cannot block later frames. */
+ 	const uint8_t ack[3] = {(uint8_t)(GOODIX_GTX8_REG >> 8),
+ 	    (uint8_t)(GOODIX_GTX8_REG & 0xffu), 0};
+-	err = touch_msg(0x5d, ack, sizeof(ack), NULL, 0, false);
++	int ack_err = touch_msg(0x5d, ack, sizeof(ack), NULL, 0, false);
++	if (ack_err) {
++		*stage = "ack";
++		return ack_err;
++	}
+ 	if (!err) {
+ 		touch_report(mask, x, y);
+ 	}
+@@ -710,11 +730,13 @@
+ 		/* Optional IRQ hint still reads every 100ms, and always while down. */
+ 		if (!st.irq_hint || st.active || !(touch_rd(st.gpio, TOUCH_GPIO_IO(irq_pin)) & 1u) ||
+ 		    (++ticks % 10u) == 0) {
+-			int err = st.kind == TOUCH_GOODIX_GTX8 ? touch_goodix_gtx8() :
++			const char *stage = "report";
++			int err = st.kind == TOUCH_GOODIX_GTX8 ? touch_goodix_gtx8(&stage) :
+ 			    (st.kind == TOUCH_GOODIX ? touch_goodix() : touch_focaltech());
+ 			if (err) {
+ 				if ((errors++ % 100u) == 0) {
+-					printf("SWEET TOUCH: report err=%d irq=%#x\n", err, st.irq_status);
++					printf("SWEET TOUCH: %s err=%d irq=%#x tx=%u rx=%u\n",
++					    stage, err, st.irq_status, st.sent, st.got);
+ 				}
+ 				if (errors == 10) {
+ 					touch_report(0, st.x, st.y); /* release after persistent bad reads */
+--- a/bsd/dev/sweet_rpmh.c
++++ b/bsd/dev/sweet_rpmh.c
+@@ -6,6 +6,7 @@
+ #if defined(ARM64_BOARD_CONFIG_SWEET)
+ #include <sys/param.h>
+ #include <sys/systm.h>
++#include <pexpert/pexpert.h>
+ #include <sys/errno.h>
+ #include <kern/clock.h>
+ #include <machine/machine_routines.h>
+@@ -15,7 +16,8 @@
+ 
+ /* Live downstream DT has two positional reg entries, no reg-names. */
+ #define RH_RSC_PA       0x18220000u
+-#define RH_TCS_PA       0x18220d00u
++#define RH_GRUS_RSC_PA  0x179e0000u
++#define RH_TCS_OFFSET   0xd00u
+ #define RH_TCS_SIZE     0x3000u
+ #define RH_DICT_PA      0x0c3f000cu
+ #define RH_DRV          2u
+@@ -100,11 +102,15 @@
+ static int
+ rh_map(void)
+ {
++	int grus = 0;
++	(void)PE_parse_boot_argn("grus", &grus, sizeof(grus));
++	uint32_t rsc_pa = grus ? RH_GRUS_RSC_PA : RH_RSC_PA;
++	uint32_t tcs_pa = rsc_pa + RH_TCS_OFFSET;
+ 	if (!rh_rsc) {
+-		rh_rsc = ml_io_map(RH_RSC_PA, 0x100);
++		rh_rsc = ml_io_map(rsc_pa, 0x100);
+ 	}
+ 	if (!rh_tcs) {
+-		rh_tcs = ml_io_map(RH_TCS_PA, RH_TCS_SIZE);
++		rh_tcs = ml_io_map(tcs_pa, RH_TCS_SIZE);
+ 	}
+ 	if (!rh_dict) {
+ 		rh_dict = ml_io_map(RH_DICT_PA, 8);
+@@ -120,7 +126,7 @@
+ 	unsigned count = (config >> (6u * RH_DRV)) & 0x3fu;
+ 	rh_ncpt = (config >> 27) & 0x1fu;
+ 	printf("SWEET RPMH: rsc=%#x tcs=%#x DRV=%u id=%#x solver=%#x config=%#x TCS=%u ncpt=%u\n",
+-	    RH_RSC_PA, RH_TCS_PA, RH_DRV, id, solver, config, count, rh_ncpt);
++	    rsc_pa, tcs_pa, RH_DRV, id, solver, config, count, rh_ncpt);
+ 	/* This client implements the pre-v3 layout only; do not guess v3 offsets. */
+ 	if ((major != 1 && major != 2) || config == 0xffffffffu ||
+ 	    solver == 0xffffffffu || count < RH_NORMAL_N ||
+@@ -320,7 +326,7 @@
+ 		return EIO;
+ 	}
+ 	rh_poisoned = false;
+-	printf("SWEET RPMH: L11C ACTIVE vote complete (rail voltage requires hardware verification)\n");
++	printf("SWEET RPMH: ACTIVE vote complete (rail voltage requires hardware verification)\n");
+ 	return 0;
+ }
+ 
